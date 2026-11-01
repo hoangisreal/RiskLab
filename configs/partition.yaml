@@ -1,0 +1,14 @@
+# Partition assignment (MASTER_PLAN Section 4.1). Changing seed or shares changes every
+# partition and invalidates all downstream results.
+# Relative paths resolve against the project root (the directory containing configs/).
+seed: 20261101
+shares:
+  train: 0.55
+  calibration: 0.10
+  selection: 0.10
+  test: 0.15
+  monitoring: 0.10
+source_table: application_train
+id_column: SK_ID_CURR
+stratify_column: TARGET
+output_dir: data/partitions

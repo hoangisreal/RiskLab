@@ -12,7 +12,7 @@ runner = CliRunner()
 def test_help() -> None:
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
-    for cmd in ("version", "ingest", "synthetic", "--config-dir"):
+    for cmd in ("version", "ingest", "partition", "synthetic", "--config-dir"):
         assert cmd in result.output
 
 

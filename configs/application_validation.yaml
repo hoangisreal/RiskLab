@@ -1,0 +1,31 @@
+# Validation rules for application_train / application_test (`risklab validate`).
+# A NULL never violates a range or domain rule; null rates are reported as info.
+# Categorical domains live in application_domains.yaml.
+sentinels:
+  - {column: DAYS_EMPLOYED, value: 365243}
+xna_value: XNA
+
+# Each rule applies to its columns in both tables (columns absent from a table are skipped).
+# Bounds: gt/ge/lt/le. `values`: closed set of allowed values. `allowed`: extra accepted values.
+# `prefix` selects the numeric (non-VARCHAR) columns of application_train starting with it.
+ranges:
+  - {name: flag_binary, prefix: FLAG_, values: [0, 1]}
+  - {name: ext_source_unit_interval, columns: [EXT_SOURCE_1, EXT_SOURCE_2, EXT_SOURCE_3], ge: 0, le: 1}
+  - {name: amount_positive, columns: [AMT_INCOME_TOTAL, AMT_CREDIT], gt: 0}
+  - {name: annuity_non_negative, columns: [AMT_ANNUITY], ge: 0}
+  - {name: days_birth_negative, columns: [DAYS_BIRTH], lt: 0}
+  - {name: days_past_events, columns: [DAYS_REGISTRATION, DAYS_ID_PUBLISH, DAYS_LAST_PHONE_CHANGE], le: 0}
+  - {name: days_employed, columns: [DAYS_EMPLOYED], le: 0, allowed: [365243]}
+  - {name: children_non_negative, columns: [CNT_CHILDREN], ge: 0}
+  - {name: region_rating, columns: [REGION_RATING_CLIENT, REGION_RATING_CLIENT_W_CITY], values: [1, 2, 3]}
+
+# Narrow, id-level acceptance of known violations. A row is accepted only if its table, check
+# name and SK_ID_CURR all match; every other offending row keeps the check's severity. An entry
+# that matches no offending row is reported as a `stale_known_exception` warning.
+known_exceptions:
+  - table: application_test
+    check: "range:region_rating"
+    ids: [224393]
+    reason: >-
+      Raw value -1 (undocumented code) in REGION_RATING_CLIENT_W_CITY of an unlabeled row used
+      only for drift; value retained unchanged; the API contract must still reject it.

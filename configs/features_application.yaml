@@ -1,0 +1,18 @@
+# Feature policy for application-only models (see docs/data_contract.md, "Modelling inputs").
+# Numeric vs categorical columns are derived from raw_schema.yaml types (VARCHAR = categorical,
+# everything else numeric) plus the cleaning flag columns. Nothing is inferred from data values.
+exclude:
+  - SK_ID_CURR   # identifier
+  - TARGET       # label
+  # Excluded by default policy. Whether gender may be a model input is an open owner decision
+  # recorded in docs/PROGRESS.md; changing this list changes every downstream result.
+  - CODE_GENDER
+# Monetary columns for the Logistic Regression log1p transform: numeric, non-excluded columns
+# whose name starts with log_prefix, minus the count-like prefixes in log_exclude_prefixes.
+log_prefix: AMT_
+log_exclude_prefixes:
+  - AMT_REQ_CREDIT_BUREAU_   # enquiry counts, not amounts
+# OneHotEncoder: categories below this share of Train rows are pooled into one infrequent bin.
+onehot_min_frequency: 0.005
+# LightGBM: categories seen in fewer Train rows than this are treated as missing.
+lgbm_min_category_count: 50

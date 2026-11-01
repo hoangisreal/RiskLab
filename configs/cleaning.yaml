@@ -1,0 +1,7 @@
+# Row-wise cleaning of application tables (see docs/data_contract.md, "Cleaning rules").
+# Sentinels and "not applicable" placeholders become NULL; the sentinel keeps an indicator flag.
+sentinel_to_null:
+  - {column: DAYS_EMPLOYED, value: 365243, flag_column: DAYS_EMPLOYED_IS_SENTINEL}
+category_to_null:
+  value: XNA
+  columns: [CODE_GENDER, ORGANIZATION_TYPE]

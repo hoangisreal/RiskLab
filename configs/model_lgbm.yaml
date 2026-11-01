@@ -1,0 +1,12 @@
+# LightGBM hyperparameters. Conservative defaults only; search budgets are set by experiment configs.
+# No class weighting (AGENTS.md rule 5).
+seed: 20261101
+n_estimators: 300
+learning_rate: 0.05
+num_leaves: 31
+min_child_samples: 100
+subsample: 0.8
+subsample_freq: 1
+colsample_bytree: 0.8
+reg_lambda: 1.0
+n_jobs: 4

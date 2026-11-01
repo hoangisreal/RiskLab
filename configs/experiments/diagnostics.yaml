@@ -1,0 +1,12 @@
+# Leakage diagnostics for the application model inputs (docs/leakage.md).
+# Declared before the first run. Selection is used only to score the permuted fits.
+seed: 20261101
+permutation_repeats: 3
+# Under permuted labels the Selection AUC has a standard deviation of about 0.006 (2.5k positives),
+# so a band of 0.02 is roughly three sigma.
+permutation_band: 0.02
+# Univariate |AUC - 0.5| above this is flagged for investigation, except known strong signals.
+screening_threshold: 0.20
+expected_strong_prefixes:
+  - EXT_SOURCE_
+top_n: 15

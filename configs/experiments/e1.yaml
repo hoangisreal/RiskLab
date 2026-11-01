@@ -1,0 +1,26 @@
+# E1: Logistic Regression vs LightGBM on the same application-only features and partitions.
+# Declared BEFORE the first run (see docs/PROGRESS.md decision D12). Changing a value after results
+# exist requires a note in docs/PROGRESS.md.
+experiment_name: risklab-e1-model-family
+feature_set: application
+seed: 20261101
+
+# Hyperparameters and boosting rounds are chosen by inner CV on Train only.
+inner_cv:
+  folds: 5
+  seed: 20261101
+lr:
+  c_grid: [0.01, 0.1, 1.0]   # ties go to the smaller C
+lgbm:
+  max_rounds: 2000
+  early_stopping_rounds: 100
+
+# Decision rule, evaluated on the Selection partition with a paired bootstrap:
+# prefer LightGBM only if delta(primary_metric) = LightGBM - LR is at least min_gain AND the lower
+# bound of its ci_level interval is above 0. Otherwise prefer Logistic Regression (simpler).
+decision:
+  primary_metric: roc_auc
+  min_gain: 0.005
+  bootstrap_resamples: 1000
+  bootstrap_seed: 20261101
+  ci_level: 0.95

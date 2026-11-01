@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import re
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import Any
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
@@ -89,6 +89,42 @@ class DataConfig(_Strict):
         )
 
 
+PARTITION_ROLES = ("train", "calibration", "selection", "test", "monitoring")
+SHARE_TOLERANCE = 1e-9
+
+
+class PartitionConfig(_Strict):
+    """Partition assignment settings (``partition.yaml``)."""
+
+    seed: int
+    shares: dict[str, float]
+    source_table: str
+    id_column: str
+    stratify_column: str
+    output_dir: Path
+
+    @field_validator("shares")
+    @classmethod
+    def _shares_valid(cls, v: dict[str, float]) -> dict[str, float]:
+        missing, extra = set(PARTITION_ROLES) - set(v), set(v) - set(PARTITION_ROLES)
+        if missing or extra:
+            raise ValueError(
+                f"shares must have exactly the roles {list(PARTITION_ROLES)} "
+                f"(missing: {sorted(missing)}, unexpected: {sorted(extra)})"
+            )
+        bad = sorted(k for k, share in v.items() if not share > 0)
+        if bad:
+            raise ValueError(f"shares must be > 0 (got non-positive for {bad})")
+        total = sum(v.values())
+        if abs(total - 1.0) > SHARE_TOLERANCE:
+            raise ValueError(f"shares must sum to 1 (got {total!r})")
+        return v
+
+    def resolved(self, root: Path) -> PartitionConfig:
+        out = self.output_dir
+        return self.model_copy(update={"output_dir": out if out.is_absolute() else root / out})
+
+
 ALLOWED_DUCKDB_TYPES = frozenset(
     {"BIGINT", "INTEGER", "SMALLINT", "TINYINT", "DOUBLE", "FLOAT", "BOOLEAN", "DATE", "VARCHAR"}
 )
@@ -134,9 +170,6 @@ class RawSchema(_Strict):
     def table_hash(self, table: str) -> str:
         """Stable SHA256 of one table's schema entry (ordered names and types)."""
         return config_hash({"columns": [c.model_dump() for c in self.columns(table)]})
-
-
-ModelT = TypeVar("ModelT", bound=BaseModel)
 
 
 def resolve_config_dir(config_dir: Path | str | None = None) -> Path:
@@ -200,3 +233,33 @@ def load_raw_schema(
                 f"extra: {sorted(extra)})"
             )
     return schema
+
+
+def load_partition_config(config_dir: Path | str | None = None) -> PartitionConfig:
+    """Load ``partition.yaml`` and resolve ``output_dir`` against the project root."""
+    cfg_dir = resolve_config_dir(config_dir)
+    path = cfg_dir / "partition.yaml"
+    raw = _load_yaml(path)
+    try:
+        cfg = PartitionConfig.model_validate(raw)
+    except ValidationError as exc:
+        details = "; ".join(
+            f"{'.'.join(str(p) for p in e['loc'])}: {e['msg']}" for e in exc.errors()
+        )
+        raise ConfigError(f"Invalid config {path}: {details}") from exc
+    return cfg.resolved(project_root(cfg_dir))
+
+
+def load_model[ModelT: BaseModel](
+    config_dir: Path | str | None, filename: str, model: type[ModelT]
+) -> ModelT:
+    """Load ``<config_dir>/<filename>`` and validate it against a pydantic model."""
+    path = resolve_config_dir(config_dir) / filename
+    raw = _load_yaml(path)
+    try:
+        return model.model_validate(raw)
+    except ValidationError as exc:
+        details = "; ".join(
+            f"{'.'.join(str(p) for p in e['loc'])}: {e['msg']}" for e in exc.errors()
+        )
+        raise ConfigError(f"Invalid config {path}: {details}") from exc
