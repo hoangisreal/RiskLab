@@ -105,3 +105,45 @@ Applicants without history (356,255 applications in total):
 - `EMERGENCYSTATE_MODE` is `Yes`/`No` text and is kept as VARCHAR.
 - Empty CSV fields become NULL. Ingest fails on any value that does not match its declared type.
 - Parquet files are not guaranteed byte-identical across runs (`preserve_insertion_order=false`). The raw-file SHA256 and row counts in the manifest are the exact references.
+
+## Cleaning rules
+
+Defined in `configs/cleaning.yaml`, applied by `risklab.data.clean.clean_application(table, cfg)`.
+
+| Rule | Effect |
+|---|---|
+| `DAYS_EMPLOYED = 365243` | set to NULL; integer flag `DAYS_EMPLOYED_IS_SENTINEL` = 1 (0 otherwise, also 0 when the source is NULL) |
+| `XNA` in `CODE_GENDER`, `ORGANIZATION_TYPE` | set to NULL (exact match only; `'XNA '` and `'xna'` are untouched) |
+
+Rationale:
+
+- The sentinel and `XNA` mean "not applicable" (for example pensioners have no employment date), not a real value. As NULL they cannot distort ratios or scaling. The flag keeps the signal, because the sentinel group has a different default rate (see above).
+- The rules are strictly row-wise: each output value depends only on the same row, with no statistic computed across rows. Cleaning is therefore safe to run before partitioning without leakage. Rows are never dropped, added or reordered, and `SK_ID_CURR` and `TARGET` are passed through untouched. A unit test checks that cleaning the whole table equals cleaning its chunks separately.
+- The online (API) path reuses the same function on a single-row table.
+- Cleaned data is not yet wired into the loaders and no cleaned Parquet is written.
+
+## Validation
+
+`risklab validate` (`make validate`) checks `application_train` and `application_test` (not the partitions) after verifying the Parquet hashes against `data/manifest.json`. Rules: `configs/application_validation.yaml`; categorical domains: `configs/application_domains.yaml` (derived once from the real train Parquet by `scripts/derive_application_domains.py`, then reviewed). The report is `reports/validation/application.json` (gitignored) and the step manifest is `reports/manifests/validate.json`. The command exits 1 if any `error` check fails.
+
+Finding on the real data: one `application_test` row (`SK_ID_CURR` 224393) has `REGION_RATING_CLIENT_W_CITY = -1`; the domain is {1, 2, 3} everywhere else (train has no such value). The `range:region_rating` check is not loosened. Instead, `known_exceptions` in `configs/application_validation.yaml` accepts this one row explicitly.
+
+Known-exceptions mechanism:
+
+- Each entry has `table`, `check` (an exact rule check name: `categorical_domain` or `range:<rule>`), a non-empty unique `ids` list of `SK_ID_CURR`, and a non-empty `reason`. At most one entry per (table, check). The config is validated by pydantic (unknown keys are rejected).
+- An offending row is accepted only if its table, check and id all match. All other offending rows keep the check's severity, so a second bad row in the same check still fails (exit 1).
+- Accepted rows appear under `accepted_exceptions` (`ids`, `count`, `reason`) in the report and CLI output. The check `status` is `passed_with_exceptions` only if every offending row was accepted. The summary counts these checks in `accepted_exceptions`.
+- An entry that matches no offending row is reported as a `stale_known_exception` warning, so fixed or removed data is noticed.
+
+Accepted row: `SK_ID_CURR` 224393 in `application_test`, check `range:region_rating`. The value -1 is an undocumented code in an unlabeled row used only for drift monitoring. The value is retained unchanged, and the API contract must still reject it.
+
+## Modelling inputs
+
+Policy: `configs/features_application.yaml`; code: `risklab.features.application`.
+
+- Rows: `load_application_frame(role, purpose)` reads a partition only through `load_partition` (never Test), applies `clean_application`, drops the excluded columns and returns X and y indexed by `SK_ID_CURR`.
+- Excluded from X: `SK_ID_CURR` (identifier), `TARGET` (label) and `CODE_GENDER`. Excluding `CODE_GENDER` is the default policy while the owner decision on gender as a model input is open (see `docs/PROGRESS.md`). Changing the list changes every downstream result.
+- Cleaning before modelling: the rules above. `DAYS_EMPLOYED` sentinel and `XNA` become NULL (NaN in X) and `DAYS_EMPLOYED_IS_SENTINEL` is added as a numeric column.
+- Numeric vs categorical comes from the types in `raw_schema.yaml` only: `VARCHAR` is categorical, everything else numeric (plus the cleaning flag columns). Column order follows the schema. Numeric columns are float64 and categorical columns are object, with NaN for NULL, whichever values a given partition happens to contain.
+- Log-transformed (Logistic Regression only): numeric columns starting with `AMT_`, except the `AMT_REQ_CREDIT_BUREAU_*` enquiry counts. Negatives are clipped to 0 before `log1p`.
+- All statistics across applicants (medians, scaling, category sets) are learned inside the sklearn pipelines in `risklab.models.pipelines`, fitted on Train only.
