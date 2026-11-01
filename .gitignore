@@ -1,0 +1,26 @@
+# Data and tracking (never committed)
+/data/
+/mlflow-data/
+*.parquet
+!tests/**/*.parquet
+
+# Reports: only reference hashes and aggregate metrics are committed
+/reports/*
+!/reports/reference/
+
+# Environments and caches
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+
+# Secrets
+.env
+
+# Notebooks
+.ipynb_checkpoints/

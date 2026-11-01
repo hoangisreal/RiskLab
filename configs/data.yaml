@@ -1,0 +1,28 @@
+# Relative paths resolve against the project root (the directory containing configs/).
+raw_dir: data/raw
+parquet_dir: data/parquet
+manifest_path: data/manifest.json
+reports_dir: reports
+
+# Raw CSV file name -> table name
+tables:
+  application_train.csv: application_train
+  application_test.csv: application_test
+  bureau.csv: bureau
+  bureau_balance.csv: bureau_balance
+  previous_application.csv: previous_application
+  POS_CASH_balance.csv: pos_cash_balance
+  credit_card_balance.csv: credit_card_balance
+  installments_payments.csv: installments_payments
+
+duckdb:
+  memory_limit: 4GB
+  temp_directory: data/duckdb_tmp
+  threads: null
+  preserve_insertion_order: false
+
+# Synthetic dataset for tests and CI (risklab synthetic). Command-line options override these.
+synthetic:
+  out_dir: data/synthetic
+  n_applicants: 2000
+  seed: 20260101
