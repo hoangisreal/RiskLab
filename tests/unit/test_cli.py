@@ -1,3 +1,5 @@
+import re
+
 import pytest
 from typer.testing import CliRunner
 
@@ -9,11 +11,18 @@ pytestmark = pytest.mark.unit
 runner = CliRunner()
 
 
+ANSI = re.compile(r"\x1b\[[0-9;]*m")
+
+
 def test_help() -> None:
-    result = runner.invoke(app, ["--help"])
+    # Rich may colour and wrap help output (CI sets FORCE_COLOR), so pin and strip it.
+    result = runner.invoke(
+        app, ["--help"], env={"NO_COLOR": "1", "FORCE_COLOR": "", "COLUMNS": "200", "TERM": "dumb"}
+    )
     assert result.exit_code == 0
-    for cmd in ("version", "ingest", "partition", "synthetic", "--config-dir"):
-        assert cmd in result.output
+    output = ANSI.sub("", result.output)
+    for cmd in ("version", "ingest", "partition", "e1", "diagnostics", "synthetic", "--config-dir"):
+        assert cmd in output
 
 
 def test_version() -> None:
