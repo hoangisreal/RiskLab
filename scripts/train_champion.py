@@ -47,16 +47,29 @@ def main() -> None:
         log=list(spec.log),
     )
     X_tr, y_tr = load_full_frame(
-        "train", "fit", groups, data_cfg=data_cfg, partition_cfg=partition_cfg,
-        config_dir=CFG, root=ROOT, registry=registry,
+        "train",
+        "fit",
+        groups,
+        data_cfg=data_cfg,
+        partition_cfg=partition_cfg,
+        config_dir=CFG,
+        root=ROOT,
+        registry=registry,
     )
     X_cal, y_cal = load_full_frame(
-        "calibration", "calibrate", groups, data_cfg=data_cfg, partition_cfg=partition_cfg,
-        config_dir=CFG, root=ROOT, registry=registry,
+        "calibration",
+        "calibrate",
+        groups,
+        data_cfg=data_cfg,
+        partition_cfg=partition_cfg,
+        config_dir=CFG,
+        root=ROOT,
+        registry=registry,
     )
     base = fit_pipeline(
         make_lgbm_pipeline(load_lgbm_params(CFG), columns=cols, config_dir=str(CFG)),
-        X_tr[cols.all], y_tr,
+        X_tr[cols.all],
+        y_tr,
     )
     model = fit_calibrator(base, X_cal[cols.all], y_cal, method)
     out = reports / "models"
