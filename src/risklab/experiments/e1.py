@@ -8,7 +8,9 @@ The Test partition is never read. Every number reported here comes from an MLflo
 
 from __future__ import annotations
 
+import hashlib
 import json
+import pickle
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -31,8 +33,16 @@ from risklab.config import (
     load_partition_config,
 )
 from risklab.data.loaders import PartitionRole, Purpose, partition_info
-from risklab.features.application import load_application_frame, load_features_config
-from risklab.manifest import write_json_atomic
+from risklab.experiments.artifacts import analysis_manifest
+from risklab.features.application import (
+    FeatureColumns,
+    feature_spec,
+    load_application_frame,
+    load_features_config,
+)
+from risklab.features.historical import combined_columns, load_full_frame
+from risklab.features.registry import load_registry
+from risklab.manifest import library_versions, sha256_file, write_json_atomic
 from risklab.models.evaluate import (
     LOWER_IS_BETTER,
     METRIC_NAMES,
@@ -47,6 +57,7 @@ from risklab.models.pipelines import (
     make_lr_pipeline,
     output_feature_names,
 )
+from risklab.models.select import protocol_hashes
 from risklab.models.train import fit_pipeline, tune_lgbm_rounds, tune_lr
 from risklab.tracking import provenance_tags, tracked_run
 
@@ -169,9 +180,14 @@ def run_e1(
     partition_cfg: PartitionConfig | None = None,
     tracking: bool = True,
     log: Callable[[str], None] = lambda _msg: None,
+    served_groups: list[str] | None = None,
 ) -> dict[str, Any]:
     """Run E1 end to end and return the summary (also written to ``output_dir/summary.json``)."""
-    cfg = load_e1_config(config_dir)
+    cfg = (
+        load_e1_config(config_dir)
+        if served_groups is None
+        else load_model(config_dir, "experiments/e1_served.yaml", E1Config)
+    )
     data_cfg = data_cfg or load_data_config(config_dir)
     partition_cfg = partition_cfg or load_partition_config(config_dir)
     features_cfg = load_features_config(config_dir)
@@ -184,20 +200,32 @@ def run_e1(
         partition_cfg=partition_cfg,
         config_dir=None if config_dir is None else Path(config_dir),
     )
-    X_tr, y_tr = load_application_frame(
-        PartitionRole.train,
-        Purpose.fit,
-        data_cfg=data_cfg,
-        partition_cfg=partition_cfg,
-        config_dir=config_dir,
-    )
-    X_se, y_se = load_application_frame(
-        PartitionRole.selection,
-        Purpose.select,
-        data_cfg=data_cfg,
-        partition_cfg=partition_cfg,
-        config_dir=config_dir,
-    )
+    columns = None
+    if served_groups is None:
+        X_tr, y_tr = load_application_frame(
+            PartitionRole.train,
+            Purpose.fit,
+            data_cfg=data_cfg,
+            partition_cfg=partition_cfg,
+            config_dir=config_dir,
+        )
+        X_se, y_se = load_application_frame(
+            PartitionRole.selection,
+            Purpose.select,
+            data_cfg=data_cfg,
+            partition_cfg=partition_cfg,
+            config_dir=config_dir,
+        )
+    else:
+        frame_kw: dict[str, Any] = dict(
+            data_cfg=data_cfg, partition_cfg=partition_cfg, config_dir=config_dir, root=root
+        )
+        X_tr, y_tr = load_full_frame("train", "fit", served_groups, **frame_kw)
+        X_se, y_se = load_full_frame("selection", "select", served_groups, **frame_kw)
+        numeric, categorical = combined_columns(served_groups, config_dir=config_dir)
+        base_columns = feature_spec(features_cfg, config_dir=config_dir)
+        columns = FeatureColumns(numeric=numeric, categorical=categorical, log=base_columns.log)
+        X_tr, X_se = X_tr[columns.all], X_se[columns.all]
     log(f"Train {X_tr.shape}, Selection {X_se.shape}")
     if list(X_tr.columns) != list(X_se.columns):
         raise E1Error("Train and Selection frames have different columns")
@@ -212,6 +240,7 @@ def run_e1(
         folds=cfg.inner_cv.folds,
         seed=cfg.inner_cv.seed,
         config_dir=cfg_dir_str,
+        columns=columns,
     )
     log(
         f"LR inner CV: best C={lr_tuning.best_c} mean AUC={lr_tuning.mean_auc} "
@@ -228,6 +257,7 @@ def run_e1(
         max_rounds=cfg.lgbm.max_rounds,
         early_stopping_rounds=cfg.lgbm.early_stopping_rounds,
         config_dir=cfg_dir_str,
+        columns=columns,
     )
     log(
         f"LightGBM inner CV: rounds={lgbm_tuning.chosen_rounds} "
@@ -239,8 +269,14 @@ def run_e1(
     fit_seconds: dict[str, float] = {}
     pipes: dict[str, Pipeline] = {}
     for name, pipe in (
-        (LR_NAME, make_lr_pipeline(lr_params, features_cfg, config_dir=cfg_dir_str)),
-        (LGBM_NAME, make_lgbm_pipeline(lgbm_params, features_cfg, config_dir=cfg_dir_str)),
+        (
+            LR_NAME,
+            make_lr_pipeline(lr_params, features_cfg, columns=columns, config_dir=cfg_dir_str),
+        ),
+        (
+            LGBM_NAME,
+            make_lgbm_pipeline(lgbm_params, features_cfg, columns=columns, config_dir=cfg_dir_str),
+        ),
     ):
         t0 = time.monotonic()
         pipes[name] = fit_pipeline(pipe, X_tr, y_tr)
@@ -262,6 +298,15 @@ def run_e1(
     log(decision["reason"])
 
     output_dir.mkdir(parents=True, exist_ok=True)
+    artifact_paths = {}
+    artifact_hashes = {}
+    for name, pipe in pipes.items():
+        payload = pickle.dumps(pipe)
+        digest = hashlib.sha256(payload).hexdigest()
+        artifact = output_dir / f"{name}-{digest}.pkl"
+        if not artifact.is_file():
+            artifact.write_bytes(payload)
+        artifact_paths[name], artifact_hashes[name] = str(artifact), digest
     pred_path = save_predictions(
         output_dir / "selection_predictions.parquet", X_se.index.to_numpy(), y_sel, scores
     )
@@ -276,6 +321,15 @@ def run_e1(
     summary: dict[str, Any] = {
         "experiment": cfg.experiment_name,
         "feature_set": cfg.feature_set,
+        "feature_groups": served_groups,
+        "contract_version": load_registry(config_dir).contract_version,
+        "library_versions": library_versions(),
+        "protocol_hashes": protocol_hashes(root),
+        "data_manifest_hash": sha256_file(data_cfg.manifest_path),
+        "model_paths": artifact_paths,
+        "model_sha256": artifact_hashes,
+        "predictions_path": str(pred_path),
+        "artifacts": {"curves": str(plot_path)},
         "partition_hash": info.partition_hash,
         "train_rows": int(len(X_tr)),
         "selection_rows": int(len(X_se)),
@@ -335,6 +389,7 @@ def run_e1(
                             "inner_cv_chosen_rounds": lgbm_tuning.chosen_rounds,
                         }
                     )
+                mlflow.log_artifact(artifact_paths[name])
                 mlflow.log_artifact(str(pred_path))
                 mlflow.log_artifact(str(plot_path))
         with tracked_run(
@@ -356,6 +411,12 @@ def run_e1(
             mlflow.log_dict(summary | {"resolved_config": resolved}, "summary.json")
 
     write_json_atomic(output_dir / "summary.json", summary | {"resolved_config": resolved})
+    analysis_manifest(
+        "train_served" if served_groups is not None else "train",
+        summary | {"resolved_config": resolved},
+        data_cfg=data_cfg,
+        root=root,
+    )
     return summary
 
 

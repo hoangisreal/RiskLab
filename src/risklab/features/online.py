@@ -11,13 +11,15 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
-import duckdb
 import pandas as pd
 import pyarrow as pa
 
+from risklab.api.config import load_api_config
 from risklab.config import RawSchema
 from risklab.data.clean import CleaningConfig, clean_application
+from risklab.data.duckdb_utils import duckdb_connect
 from risklab.features.build import build_group_frames
+from risklab.features.history_clean import install_history_views
 from risklab.features.registry import FeatureRegistry
 
 # History source key -> (DuckDB view/table, registry group)
@@ -131,7 +133,7 @@ def build_online_features(
         for r in provided.get("bureau", [])
         if r.get("bureau_ref") is not None
     }
-    for rec in provided.get("bureau_balance", []):
+    for rec in provided.get("bureau_balance", []) if "bureau_balance" in required_sources else []:
         ref = rec.get("bureau_ref")
         if ref is not None and str(ref) not in bureau_refs:
             raise OnlineFeatureError("bureau_balance record references unknown bureau_ref")
@@ -141,6 +143,8 @@ def build_online_features(
         if r.get("prev_ref") is not None
     }
     for src in ("installments", "pos_cash", "credit_card"):
+        if src not in required_sources:
+            continue
         for rec in provided.get(src, []):
             ref = rec.get("prev_ref")
             if ref is not None and str(ref) not in prev_refs:
@@ -153,7 +157,8 @@ def build_online_features(
     app_table = pa.table({c: [app_row[c]] for c in app_cols})
     cleaned = clean_application(app_table, cleaning)
 
-    con = duckdb.connect(":memory:")
+    cfg_dir = root / "configs"
+    con = duckdb_connect(load_api_config(cfg_dir).duckdb)
     try:
         con.register("application_src", cleaned)
         con.register(
@@ -167,11 +172,31 @@ def build_online_features(
             "pos_cash": "pos_cash_balance",
             "credit_card": "credit_card_balance",
         }
+        normal_sources = set(required_sources)
+        if any(
+            r.get("prev_ref") is not None
+            for src in ("installments", "pos_cash", "credit_card")
+            if src in required_sources
+            for r in provided.get(src, [])
+        ):
+            normal_sources.add("previous_applications")
+        parent_refs = {
+            str(r.get("prev_ref", r.get("SK_ID_PREV"))): 2_000_000 + i
+            for i, r in enumerate(provided.get("previous_applications", []))
+        }
+        loan_keys = sorted(
+            {
+                str(r.get("loan_ref", r.get("SK_ID_PREV")))
+                for source in ("installments", "pos_cash", "credit_card")
+                for r in provided.get(source, [])
+                if r.get("prev_ref") is None
+            }
+        )
+        orphan_refs = {key: 3_000_000 + i for i, key in enumerate(loan_keys)}
         for src, table in table_for_source.items():
             specs = schema.columns(table)
             cols = [c.name for c in specs]
-            recs = provided.get(src, [])
-            # Map request refs onto real keys so the shared SQL joins work.
+            recs = provided.get(src, []) if src in normal_sources else []
             norm: list[dict[str, Any]] = []
             for i, r in enumerate(recs):
                 row = {c: r.get(c) for c in cols}
@@ -194,16 +219,19 @@ def build_online_features(
                     row["SK_ID_CURR"] = applicant_id
                     row["SK_ID_PREV"] = 2_000_000 + i
                 else:
-                    prev_list = provided.get("previous_applications", [])
                     ref = r.get("prev_ref")
-                    idx = next(
-                        (j for j, b in enumerate(prev_list) if str(b.get("prev_ref")) == str(ref)),
-                        None,
+                    loan = r.get("loan_ref", r.get("SK_ID_PREV"))
+                    if ref is None and loan is None:
+                        raise OnlineFeatureError(f"{src} requires prev_ref or loan_ref")
+                    row["SK_ID_PREV"] = (
+                        parent_refs[str(ref)]
+                        if ref is not None
+                        else parent_refs.get(str(loan), orphan_refs[str(loan)])
                     )
-                    row["SK_ID_PREV"] = (2_000_000 + idx) if idx is not None else -1
                     row["SK_ID_CURR"] = applicant_id
                 norm.append(row)
-            con.register(table, _records_to_table(norm, specs))
+            con.register("raw_" + table, _records_to_table(norm, specs))
+        install_history_views(con, config_dir=cfg_dir, schema=schema)
         frames = build_group_frames(con, [g for g in wanted], registry, root)
     finally:
         con.close()

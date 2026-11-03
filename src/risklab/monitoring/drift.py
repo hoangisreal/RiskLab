@@ -68,6 +68,7 @@ def drift_report(
     psi_warn: float = 0.1,
     psi_alert: float = 0.25,
     ks_alert: float = 0.2,
+    missing_rate_alert: float = 0.2,
 ) -> list[dict[str, float | str]]:
     cat = set(categorical or [])
     rows: list[dict[str, float | str]] = []
@@ -76,10 +77,10 @@ def drift_report(
             rows.append(
                 {
                     "feature": col,
-                    "status": "missing_in_batch",
+                    "status": "alert",
                     "psi": 0.0,
                     "ks": 0.0,
-                    "missing_rate_change": 0.0,
+                    "missing_rate_change": float(1.0 - reference[col].isna().mean()),
                 }
             )
             continue
@@ -97,7 +98,11 @@ def drift_report(
             )
         status = (
             "alert"
-            if (psi >= psi_alert or ks >= ks_alert)
+            if (
+                psi >= psi_alert
+                or ks >= ks_alert
+                or abs(missing_rate_change(reference[col], batch[col])) >= missing_rate_alert
+            )
             else ("warn" if psi >= psi_warn else "ok")
         )
         rows.append(

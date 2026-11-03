@@ -1,0 +1,36 @@
+{
+  "expected": {
+    "selection": {
+      "best_by_log_loss": "none",
+      "chosen": "none",
+      "ece": {
+        "isotonic": 0.0058849717662851145,
+        "none": 0.0029230454014322746,
+        "sigmoid": 0.004457634088811455
+      },
+      "metrics": {
+        "isotonic": {
+          "brier": 0.06703046832644069,
+          "log_loss": 0.24575877247646274,
+          "pr_auc": 0.24711765072678463,
+          "roc_auc": 0.7684716709040456
+        },
+        "none": {
+          "brier": 0.06688177809960999,
+          "log_loss": 0.24234453350456087,
+          "pr_auc": 0.26143141167645056,
+          "roc_auc": 0.7692858459574614
+        },
+        "sigmoid": {
+          "brier": 0.06689267710703042,
+          "log_loss": 0.2424550472309119,
+          "pr_auc": 0.26143141167645056,
+          "roc_auc": 0.7692858459574614
+        }
+      }
+    }
+  },
+  "kind": "metrics",
+  "path": "experiments/e3/summary.json",
+  "source_run_ids": "7296da8d49a744bebf0fc41911a5dce5"
+}

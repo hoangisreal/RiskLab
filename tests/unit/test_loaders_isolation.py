@@ -1,9 +1,9 @@
 """Static and behavioral guards that Test rows cannot be read through the loaders.
 
-The AST scan walks every module under ``src/risklab/``. Outside ``data/partition.py`` (which
-writes and verifies all five role files) it fails on:
+The AST scan walks every module under ``src/risklab/``. Only ``data/partition.py`` may
+write/verify all five files, and ``models/final_eval.py`` may read locked Test rows. Elsewhere:
 
-* a string constant containing ``test.parquet``;
+* a string constant naming the ``test.parquet`` role file (not unlabeled application_test);
 * an f-string that builds ``{...role...}.parquet``, which could produce the Test role path;
 * any reference to ``read_role_ids``, which reads a role file by arbitrary path.
 
@@ -12,6 +12,7 @@ readable roles. This is a guard against accidental reads, not a security boundar
 """
 
 import ast
+import re
 from pathlib import Path
 
 import pytest
@@ -31,6 +32,7 @@ pytestmark = pytest.mark.unit
 
 SRC = Path(__file__).resolve().parents[2] / "src" / "risklab"
 PARTITION_MODULE = SRC / "data" / "partition.py"
+FINAL_EVAL_MODULE = SRC / "models" / "final_eval.py"
 
 
 def violations(path: Path, base: Path = SRC) -> list[str]:
@@ -38,7 +40,7 @@ def violations(path: Path, base: Path = SRC) -> list[str]:
     for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
         where = f"{path.relative_to(base)}:{getattr(node, 'lineno', '?')}"
         if isinstance(node, ast.Constant) and isinstance(node.value, str):
-            if "test.parquet" in node.value:
+            if re.search(r"(?<![A-Za-z0-9_])test\.parquet\b", node.value):
                 found.append(f"{where}: literal {node.value!r}")
         elif isinstance(node, ast.JoinedStr):
             for i, part in enumerate(node.values[:-1]):
@@ -58,7 +60,7 @@ def violations(path: Path, base: Path = SRC) -> list[str]:
 
 
 def test_only_partition_module_can_build_the_test_role_path() -> None:
-    modules = [p for p in SRC.rglob("*.py") if p != PARTITION_MODULE]
+    modules = [p for p in SRC.rglob("*.py") if p not in (PARTITION_MODULE, FINAL_EVAL_MODULE)]
     assert SRC / "data" / "loaders.py" in modules
     assert [v for p in modules for v in violations(p)] == []
 
@@ -70,6 +72,14 @@ def test_scan_detects_forbidden_patterns(tmp_path: Path) -> None:
         "d = read_role_ids\n"
     )
     assert len(violations(bad, tmp_path)) == 4
+
+
+def test_scan_distinguishes_the_unlabeled_kaggle_filename(tmp_path: Path) -> None:
+    source = tmp_path / "unlabeled.py"
+    source.write_text(
+        'a = "application_test.parquet"\nb = "data/parquet/application_test.parquet"\n'
+    )
+    assert violations(source, tmp_path) == []
 
 
 def test_test_role_exists_but_has_no_allowed_purpose() -> None:

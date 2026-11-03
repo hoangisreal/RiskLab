@@ -115,3 +115,30 @@ def test_save_predictions_roundtrip(tmp_path: Path) -> None:
     assert not list((tmp_path / "sub").glob(".*tmp"))
     with pytest.raises(EvaluationError):
         save_predictions(tmp_path / "bad.parquet", [1, 2], [0, 1], {"lr": [0.1]})
+
+
+@pytest.mark.parametrize("ties", [False, True])
+def test_optimized_bootstrap_matches_independent_sklearn_with_duplicate_rows(ties):
+    from sklearn.metrics import average_precision_score, brier_score_loss, log_loss, roc_auc_score
+
+    from risklab.models.evaluate import METRIC_NAMES, _BootstrapScorer
+
+    rng = np.random.default_rng(67)
+    y = np.r_[np.zeros(95, dtype=int), np.ones(5, dtype=int)]
+    p = rng.random(len(y))
+    if ties:
+        p = np.round(p, 1)
+    scorer = _BootstrapScorer(y, p)
+    for _ in range(100):
+        idx = rng.integers(0, len(y), size=len(y))
+        if len(np.unique(y[idx])) < 2:
+            continue
+        metrics = scorer.score(np.bincount(idx, minlength=len(y)), METRIC_NAMES)
+        clipped = np.clip(p[idx], 1e-15, 1 - 1e-15)
+        expected = {
+            "roc_auc": roc_auc_score(y[idx], p[idx]),
+            "pr_auc": average_precision_score(y[idx], p[idx]),
+            "brier": brier_score_loss(y[idx], p[idx]),
+            "log_loss": log_loss(y[idx], clipped, labels=[0, 1]),
+        }
+        assert metrics == pytest.approx(expected, abs=1e-12)

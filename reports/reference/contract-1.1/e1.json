@@ -1,0 +1,27 @@
+{
+  "expected": {
+    "contract_version": "1.1",
+    "partition_hash": "b26bba642ca01b6240cd5f38f21cd0e546b5f975f3ce99cf847eb8f3f35a9101",
+    "selection_metrics": {
+      "lightgbm": {
+        "brier": 0.06779070525470773,
+        "log_loss": 0.24643960466349835,
+        "pr_auc": 0.2432387716754865,
+        "roc_auc": 0.7559674839074096
+      },
+      "logistic_regression": {
+        "brier": 0.06829085086780326,
+        "log_loss": 0.24892474359204161,
+        "pr_auc": 0.23594218558841168,
+        "roc_auc": 0.7463908737483441
+      }
+    }
+  },
+  "kind": "metrics",
+  "path": "experiments/e1/summary.json",
+  "source_run_ids": {
+    "comparison": "da3c298ee217424e9fd4f2e9ba769906",
+    "lightgbm": "0ddfcd8a40ac4820b6da16ae205ab826",
+    "logistic_regression": "50e64b81e3464e3da2d0d30caae9d88d"
+  }
+}

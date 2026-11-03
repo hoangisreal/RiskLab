@@ -4,14 +4,21 @@ from __future__ import annotations
 
 from typing import Any
 
-GATE_DEFAULTS: dict[str, float] = {
-    "auc_tolerance": 0.005,
-    "logloss_tolerance": 0.01,
-    "brier_tolerance": 0.005,
-    "ece_limit": 0.05,
-    "floor_roc_auc": 0.70,
-    "floor_log_loss": 0.30,
-}
+from pydantic import Field
+
+from risklab.config import _Strict
+
+
+class GateConfig(_Strict):
+    auc_tolerance: float = Field(default=0.005, ge=0)
+    logloss_tolerance: float = Field(default=0.01, ge=0)
+    brier_tolerance: float = Field(default=0.005, ge=0)
+    ece_limit: float = Field(default=0.05, ge=0, le=1)
+    floor_roc_auc: float = Field(default=0.70, ge=0, le=1)
+    floor_log_loss: float = Field(default=0.30, ge=0)
+
+
+GATE_DEFAULTS = GateConfig().model_dump()
 
 
 def promotion_gate(

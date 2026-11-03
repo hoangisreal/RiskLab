@@ -6,3 +6,10 @@ cost_fp: 1.0
 cost_fn: 10.0
 threshold_grid_size: 200
 sensitivity_ratios: [2, 5, 10, 20]
+# Phase 4 proxy policy, declared before contract-1.1 experiments. TARGET is not a loss label.
+policy: per_loan
+loan:
+  lgd: 0.5
+  margin: 0.05
+  sensitivity_lgd: [0.2, 0.5, 0.8]
+  sensitivity_margin: [0.025, 0.05, 0.1]

@@ -58,11 +58,28 @@ def app_env(
         "model_lgbm.yaml",
         "calibration.yaml",
         "cost.yaml",
+        "monitoring.yaml",
+        "serving_validation.yaml",
+        "verification.yaml",
+        "final_eval.yaml",
+        "registry.yaml",
+        "historical.yaml",
+        "api.yaml",
+        "application_validation.yaml",
+        "application_domains.yaml",
     ):
         shutil.copy(CONFIG_DIR / name, cfg_dir / name)
     exp_dir = cfg_dir / "experiments"
     exp_dir.mkdir(exist_ok=True)
-    for name in ("e1.yaml", "e2.yaml", "e3.yaml", "e4.yaml", "diagnostics.yaml"):
+    for name in (
+        "e1.yaml",
+        "e1_served.yaml",
+        "e2.yaml",
+        "e3.yaml",
+        "e4.yaml",
+        "diagnostics.yaml",
+        "policy.yaml",
+    ):
         shutil.copy(CONFIG_DIR / "experiments" / name, exp_dir / name)
     # Feature SQL lives at <root>/sql/features; link the shipped files for the online/batch paths.
     sql_link = root / "sql"

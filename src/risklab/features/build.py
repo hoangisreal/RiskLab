@@ -14,11 +14,13 @@ import duckdb
 import pandas as pd
 import pyarrow as pa
 
-from risklab.config import DataConfig
+from risklab.config import DataConfig, load_raw_schema
 from risklab.data.duckdb_utils import duckdb_connect
 from risklab.data.ingest import quote_str
+from risklab.data.validate_history import ensure_history_validated
+from risklab.features.history_clean import install_history_views
 from risklab.features.registry import FeatureRegistry, load_registry
-from risklab.manifest import write_json_atomic
+from risklab.manifest import sha256_file, write_manifest
 
 FEATURES_STEP = "features"
 
@@ -58,9 +60,13 @@ def build_group_frames(
 
 
 def open_batch_connection(
-    data_cfg: DataConfig, applicant_ids: Sequence[int], application_cleaned: pa.Table
+    data_cfg: DataConfig,
+    applicant_ids: Sequence[int],
+    application_cleaned: pa.Table,
+    config_dir: Path,
 ) -> duckdb.DuckDBPyConnection:
     """Connection with Parquet views plus the cleaned application and applicant views."""
+    ensure_history_validated(data_cfg, config_dir)
     con = duckdb_connect(data_cfg.duckdb)
     parquet = data_cfg.parquet_dir
     for table in (
@@ -75,8 +81,10 @@ def open_batch_connection(
         if not path.is_file():
             raise FeatureBuildError(f"Parquet file not found: {path}. Run `risklab ingest` first.")
         con.execute(
-            f"CREATE OR REPLACE VIEW {table} AS SELECT * FROM read_parquet({quote_str(str(path))})"
+            f"CREATE OR REPLACE VIEW raw_{table} AS SELECT * "
+            f"FROM read_parquet({quote_str(str(path))})"
         )
+    install_history_views(con, config_dir=config_dir, schema=load_raw_schema(config_dir))
     con.register("application_src", application_cleaned)
     con.register(
         "applicants", pa.table({"SK_ID_CURR": pa.array(list(applicant_ids), type=pa.int64())})
@@ -98,7 +106,7 @@ def build_features(
     """Build the requested groups for ``applicant_ids``; optionally write per-group Parquet."""
     registry = registry or load_registry(root / "configs")
     groups = list(groups) if groups is not None else registry.all_groups()
-    con = open_batch_connection(data_cfg, applicant_ids, application_cleaned)
+    con = open_batch_connection(data_cfg, applicant_ids, application_cleaned, root / "configs")
     try:
         frames = build_group_frames(con, groups, registry, root)
     finally:
@@ -108,15 +116,22 @@ def build_features(
         for group, frame in frames.items():
             frame.reset_index().to_parquet(output_dir / f"{group}.parquet", index=False)
             log(f"features/{group}.parquet: {len(frame)} rows, {frame.shape[1]} features")
-        write_json_atomic(
-            output_dir / "features_manifest.json",
-            {
-                "step": FEATURES_STEP,
+        manifest = write_manifest(
+            data_cfg.reports_dir / "manifests/features.json",
+            FEATURES_STEP,
+            config=registry.model_dump(),
+            inputs={"data_manifest": sha256_file(data_cfg.manifest_path)},
+            outputs={g: sha256_file(output_dir / f"{g}.parquet") for g in groups},
+            summary={
                 "contract_version": registry.contract_version,
                 "groups": {g: sorted(frames[g].columns.tolist()) for g in groups},
                 "rows": int(len(applicant_ids)),
             },
+            git_cwd=root,
         )
+        from risklab.manifest import write_json_atomic
+
+        write_json_atomic(output_dir / "features_manifest.json", manifest)
     return frames
 
 

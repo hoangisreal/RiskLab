@@ -1,0 +1,6 @@
+# Reporting only: these settings never choose a model or threshold.
+bootstrap_resamples: 1000
+bootstrap_seed: 20261101
+ci_level: 0.95
+min_n: 200
+min_positives: 20

@@ -1,101 +1,107 @@
 # Experiments
 
-Every number below comes from an MLflow run on the local tracking server (`make mlflow`). Run ids
-are listed with each result. Decision rules, `min_gain` and bootstrap settings were declared in
-`configs/experiments/*.yaml` before the runs (decision D12 in `docs/PROGRESS.md`). The Test
-partition has not been opened (ledger entries: 0).
+These are contract-1.1 results from the HTTP MLflow server. All choices use Selection; the corrected artifact has not opened Test. Train/Calibration/Selection/Monitoring roles and the fixed partition hash `b26bba642ca01b6240cd5f38f21cd0e546b5f975f3ce99cf847eb8f3f35a9101` are unchanged. Train has 169,131 applicants and Selection 30,751. Configured comparisons use 1,000 paired resamples and 95% intervals. Decisions D13–D16 were recorded before the accepted runs.
 
-Common setup: partition hash `b26bba642ca01b6240cd5f38f21cd0e546b5f975f3ce99cf847eb8f3f35a9101`
-(seed 20261101, shares 55/10/10/15/10). Models are fitted on Train (169,131 rows, 13,654 positives)
-and compared on Selection (30,751 rows, 2,482 positives). Hyperparameters and boosting rounds come
-from 5-fold stratified CV inside Train, with preprocessing refitted on every fold.
+The initial unordered contract-1.1 run failed cross-process candidate verification. Its artifacts are preserved locally; the results below use explicitly ordered floating aggregates. No metric tolerance or selection rule was relaxed.
 
-## E1: Logistic Regression vs LightGBM (application features only)
+## E1 on application features
 
-Question: does LightGBM beat the Logistic Regression baseline on the same 120 cleaned application
-features, enough to justify the extra complexity?
+Runs: LR `50e64b81e3464e3da2d0d30caae9d88d`, LightGBM `0ddfcd8a40ac4820b6da16ae205ab826`, comparison `da3c298ee217424e9fd4f2e9ba769906`.
 
-Rule (declared in advance): prefer LightGBM only if the ROC-AUC gain is at least 0.005 and the lower
-bound of the 95% paired-bootstrap interval is above 0. Otherwise prefer Logistic Regression.
+| Selection metric | LR | LightGBM |
+|---|---:|---:|
+| ROC-AUC | 0.746391 | 0.755967 |
+| PR-AUC | 0.235942 | 0.243239 |
+| Brier | 0.068291 | 0.067791 |
+| Log loss | 0.248925 | 0.246440 |
 
-MLflow experiment `risklab-e1-model-family`. Runs: Logistic Regression
-`c9009e8af3934030b284ada930067ae9`, LightGBM `9316731e8edb4dc583f54fb3a5c118f9`, comparison
-`b3f2b675249b498997102abfca191fe5`.
+LightGBM's ROC-AUC gain is 0.009577 with CI [0.005621, 0.013116], clearing the declared minimum gain 0.005 and positive lower bound. Hyperparameters/rounds use inner five-fold Train CV, with preprocessing refitted per fold. This repeats the earlier raw-application baseline; E2's application baseline additionally contains five row-wise ratios and uses fixed LightGBM parameters, so those two AUCs are not a controlled estimate of the ratios' effect alone.
 
-### Inner CV on Train (selection of C and rounds)
+## E2: historical sources
 
-| Model | Setting | Result |
-|---|---|---|
-| Logistic Regression | C = 0.01 / 0.1 / 1.0 | mean AUC 0.74508 / 0.74550 / 0.74539 (std about 0.0046); C = 0.1 chosen |
-| LightGBM | early stopping on each fold | best iterations 212, 189, 259, 169, 213; 208 rounds chosen; fold AUC 0.7450 to 0.7552 |
+Run `4e467506bab74355b13bca284dacbb87`. Fixed LightGBM parameters; a group is served only when its marginal cumulative ROC-AUC gain is at least 0.003 and its paired interval lower bound is positive.
 
-The three C values differ by less than the fold standard deviation, so the choice of C matters
-little.
+| Added group | Cumulative AUC | Marginal gain | 95% interval | Serve |
+|---|---:|---:|---|---|
+| Application + ratios | 0.757348 | — | — | Yes |
+| Bureau | 0.761092 | 0.003744 | [0.001147, 0.006449] | Yes |
+| Bureau balance | 0.761983 | 0.000891 | [-0.001619, 0.003046] | No |
+| Previous | 0.767689 | 0.005706 | [0.002732, 0.008967] | Yes |
+| Installments | 0.774311 | 0.006622 | [0.003468, 0.009847] | Yes |
+| POS | 0.775338 | 0.001027 | [-0.001168, 0.003170] | No |
+| Credit card | 0.777061 | 0.001723 | [-0.000784, 0.004256] | No |
 
-### Selection results
+Served set: application, bureau, previous and installments. Cumulative scores include earlier non-served groups; they are not the served model's score. The repeated E1 below evaluates the actual served set.
 
-| Metric | Logistic Regression | LightGBM | Difference (LightGBM - LR) | 95% paired bootstrap interval |
+Leave-one-group-out is descriptive and does not replace the declared cumulative decision rule:
+
+| Removed group | Full minus without AUC | 95% interval |
+|---|---:|---|
+| Bureau | 0.002110 | [-0.000352, 0.004695] |
+| Bureau balance | -0.001093 | [-0.003408, 0.001149] |
+| Previous | 0.003961 | [0.001138, 0.006851] |
+| Installments | 0.002934 | [-0.000028, 0.005935] |
+| POS | -0.000039 | [-0.002137, 0.002194] |
+| Credit card | 0.001723 | [-0.000784, 0.004256] |
+
+These effects depend on the other groups present. Several intervals include zero, so the source set is not claimed to be uniquely optimal. The rule prioritizes a bounded source/contract burden over small uncertain gains.
+
+## E1 repeated on the served set
+
+Runs: LR `7e8c455c6d814eedad18a905fca67afe`, LightGBM `cbcfa9885a7e4caa982885b8adbb5cc4`, comparison `2b1c9ef2f9f94984bb0900c54ec96887`. The inputs contain 147 columns. Train CV chose LR C=0.01 and 283 LightGBM rounds (fold best iterations 280/421/238/263/214).
+
+| Selection metric | LR | LightGBM | Difference | 95% interval |
 |---|---:|---:|---:|---|
-| ROC-AUC | 0.74639 | 0.75597 | +0.00958 | [+0.00562, +0.01312] |
-| PR-AUC | 0.23594 | 0.24324 | +0.00730 | [+0.00017, +0.01495] |
-| Brier score | 0.06829 | 0.06779 | -0.00050 | [-0.00078, -0.00022] |
-| Log loss | 0.24892 | 0.24644 | -0.00249 | [-0.00351, -0.00135] |
+| ROC-AUC | 0.759367 | 0.772521 | 0.013154 | [0.009109, 0.017429] |
+| PR-AUC | 0.252196 | 0.263679 | 0.011483 | [0.003368, 0.019703] |
+| Brier | 0.067439 | 0.066776 | -0.000663 | [-0.001007, -0.000332] |
+| Log loss | 0.245145 | 0.241557 | -0.003588 | [-0.004878, -0.002436] |
 
-Prevalence on Selection is 8.07%, so a random PR-AUC would be about 0.081.
-
-### Decision
-
-LightGBM is preferred under the pre-declared rule: the ROC-AUC gain of 0.00958 exceeds 0.005 and
-the interval excludes 0. Probabilities are uncalibrated at this stage, so Brier and log loss
-differences describe raw model output only. Calibration is the next experiment (E3).
-
-Caveats:
-- The gain is modest. The lower bound of the interval (0.0056) is only just above `min_gain`, so
-  the preference for LightGBM is not strong evidence of a large difference.
-- Both models depend on `EXT_SOURCE_*`, external scores that RiskLab cannot inspect
-  (`docs/leakage.md`).
-- Selection is a single random split of one dataset. It supports a comparison between these two
-  models, not a claim about future performance.
-- Output sizes: Logistic Regression uses 273 encoded features, LightGBM 120.
-  Final fits took 11.7 s (LR) and 6.5 s (LightGBM).
-
-### Verification
-
-- `scripts/recompute_metrics.py reports/experiments/e1` recomputes all eight metrics from the
-  prediction file with plain scikit-learn and reproduces them to 1e-9.
-- A second full run (without MLflow) reproduced the inner-CV results, selection metrics, bootstrap
-  intervals and decision exactly, on the same machine and library versions.
-- Library versions: pandas 3.1.0, scikit-learn 1.9.1, LightGBM 4.7.0, MLflow 3.17.2.
-
-## Leakage diagnostics
-
-MLflow experiment `risklab-diagnostics`, run `86bbc74314ec4ca59a46bb9016eb977f`. Results and
-interpretation are in `docs/leakage.md`. Summary: the label-permutation AUC stayed within
-0.5 +/- 0.006 for both models, the positive control was detected (AUC 0.847), and no feature
-exceeded the screening threshold.
-
-## Not run yet
-
-- E2 (feature groups), E3 (calibration), E4 (threshold and business cost): Phase 2, after
-  historical features exist.
-- The Test partition: opened only by `final-eval` with a selection lock, which does not exist yet.
-
-## E2: Feature groups (run cf726679c64d467f8ed86c9837fa57d6)
-
-Cumulative ablation on Selection (LightGBM, application base ROC-AUC 0.75606). Marginal paired-bootstrap gains: bureau +0.00258 (CI low −0.00017, not served), bureau_balance +0.00224 (CI low +0.00010, below min_gain 0.003, not served), previous +0.00578 (served), installments +0.00691 (served), POS +0.00009 (not served), credit card +0.00224 (CI low < 0, not served). Served set: application + previous + installments. Note: cumulative-step AUCs (up to 0.77590 with all groups) include non-served groups; the served-only model scores 0.76929 (E3, uncalibrated).
-
-## E3: Calibration (run 7296da8d49a744bebf0fc41911a5dce5)
-
-On Selection with the served feature set: none log loss 0.24234 (ECE 0.00292), sigmoid 0.24246 (ECE 0.00446), isotonic 0.24576 (ECE 0.00588). Best and chosen method: **none** — raw LightGBM probabilities are already well calibrated here, and the simpler-method rule agrees. A `scale_pos_weight` diagnostic is recorded in the run summary (probabilities distorted; not a candidate).
-
-## E4: Threshold (run b24c3fffb0e54c22a354865685703122)
-
-Cost-minimising threshold on Selection under C_FN/C_FP = 10: **0.0839** (Bayes threshold 0.0909; gap −0.007, within miscalibration noise). Sensitivity: ratio 2 → 0.3252, 5 → 0.1774, 10 → 0.0839, 20 → 0.0494. Reported, not optimised.
+LightGBM wins the unchanged rule. This fitted artifact is frozen for E3; it is not replaced with another fit after selection. ROC/PR curves, prediction files and model artifacts are logged to these runs.
 
 ## Sensitive-attribute policy
 
-With vs without `CODE_GENDER` on Selection (served set): ROC-AUC 0.77157 vs 0.76929, PR-AUC 0.25871 vs 0.26143, log loss 0.24214 vs 0.24234. Decision (default policy, recorded before locking): **keep CODE_GENDER excluded** — the AUC gain is small, PR-AUC worsens, and inclusion needs explicit owner approval.
+Run `ca1631574f494d1c85c0fbb0e4c97a2f` compares three fixed-LightGBM policies on the served feature set. It is descriptive and does not retune the deployed family.
 
-## Monitoring control check
+| Policy | Selection AUC | Change vs default | 95% interval |
+|---|---:|---:|---|
+| Exclude gender, keep age (default) | 0.772176 | — | — |
+| Include gender | 0.775803 | 0.003627 | [0.001206, 0.006057] |
+| Exclude gender and declared age inputs | 0.771646 | -0.000531 | [-0.002819, 0.001801] |
 
-Ten seeded control batches (2,000 rows) from the Monitoring pool scored by the champion: score PSI 0.0013–0.0060, 0/10 alerts at PSI 0.25 (false-alarm target ≤ 5%; indicative on 10 trials). Report: `reports/monitoring/control_check.json` (gitignored).
+Keep `CODE_GENDER` excluded and age included, as declared. A discrimination gain does not resolve the policy question; gender inclusion requires an explicit owner decision. Removing these age inputs does not remove all age proxies. Subgroup comparisons remain descriptive, not a finding about discrimination.
+
+## E3: calibration of the frozen winner
+
+Run `9a84a8cc279846e88b110f06ee3ea69c`, base-model run `cbcfa9885a7e4caa982885b8adbb5cc4`. Calibrators fit only Calibration; comparisons score Selection.
+
+| Method | Log loss | Brier | ECE (15 bins) |
+|---|---:|---:|---:|
+| None | 0.241557 | 0.066776 | 0.004573 |
+| Sigmoid | 0.241619 | 0.066771 | 0.004397 |
+| Isotonic | 0.249040 | 0.066894 | 0.003600 |
+
+Choose **none**, the lowest Selection log loss and simplest method. Sigmoid-minus-none log-loss CI is [-0.000064, 0.000196]; isotonic-minus-none is [0.002391, 0.013576]. Sigmoid preserves ranking here; isotonic introduces ties and reduces discrimination. Reliability plots and all method predictions are logged. The explicitly configured class-weight diagnostic is illustrative and never enters selection.
+
+Selected artifact SHA256: `f5e4d127174bde337f03ed14d47ba050efe6f45ba4c599d0e6e558a256b0d676`. Its metrics reproduce exactly during candidate preparation.
+
+## E4: threshold and proxy costs
+
+Run `92aa4caf17fd434f95ad13dd80de5198` reuses that exact artifact. The base per-loan assumptions are FP cost = 0.05 × credit and FN cost = 0.50 × credit. These are proxies: TARGET is payment difficulty, not measured loss.
+
+The selected global threshold is **0.08040201**. Its Bayes sanity threshold is 0.09090909; the empirical exposure-weighted optimum is 0.010507 lower. At the selected threshold, Selection approval is 0.692238, precision 0.178888, recall 0.682111 and proxy cost per applicant 14,533.40 dataset monetary units. The constant-cost comparison chooses 0.09090909; it does not replace the declared per-loan policy. Curves include both probability endpoints and the Bayes threshold.
+
+| Constant FN/FP ratio | Cost-minimizing threshold |
+|---|---:|
+| 2 | 0.346734 |
+| 5 | 0.160804 |
+| 10 | 0.090909 |
+| 20 | 0.045226 |
+
+The fixed nine-point LGD/margin sensitivity grid is stored in the same run; its thresholds range from 0.040201 to 0.356784. Assumptions are reported, not chosen for attractive outcomes. The serving bundle freezes them with the selected threshold.
+
+## Diagnostics, controls and historical evidence
+
+Application diagnostics run `51eb3b0ef61747ba93d7582512f88d7e` and served diagnostics run `d7bfa962dc1b44adb0766becfd85a1ab` pass the declared controls; details are in [Leakage](leakage.md). Monitoring-control run `03b14e0ed97c43a48aaaa067ca7eba19` chose scale 1: 1/100 calibration controls and 0/100 held-out controls alerted. This is a static-pool simulation, not a future-population guarantee.
+
+Earlier contract-1.0 runs remain historical: E1 comparison `b3f2b675249b498997102abfca191fe5`, E2 `cf726679c64d467f8ed86c9837fa57d6`, E3 `7296da8d49a744bebf0fc41911a5dce5`, E4 `b24c3fffb0e54c22a354865685703122`. The one historical Test opening belongs to lock `e98453beb10d833e` and does not evaluate contract 1.1. The rejected unordered contract-1.1 experiments are not an accepted baseline. No Test result informed these decisions.

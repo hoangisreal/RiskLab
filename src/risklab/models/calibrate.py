@@ -126,7 +126,25 @@ def select_calibration_method(
         if boot["ci_low"] <= 0.0 <= boot["ci_high"]:
             chosen = simpler
             break
-    return {"metrics": metrics, "ece": ece, "best_by_log_loss": best, "chosen": chosen}
+    reference = ordered[0]
+    comparisons = {
+        method: paired_bootstrap(
+            y_sel,
+            scores[method],
+            scores[reference],
+            n_resamples=config.bootstrap_resamples,
+            seed=config.bootstrap_seed,
+            ci_level=config.ci_level,
+        )
+        for method in ordered[1:]
+    }
+    return {
+        "metrics": metrics,
+        "ece": ece,
+        "best_by_log_loss": best,
+        "chosen": chosen,
+        "paired_vs_simplest": comparisons,
+    }
 
 
 __all__ = [

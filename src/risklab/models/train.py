@@ -17,7 +17,7 @@ from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import StratifiedKFold
 from sklearn.pipeline import Pipeline
 
-from risklab.features.application import FeaturesConfig
+from risklab.features.application import FeatureColumns, FeaturesConfig
 from risklab.models.pipelines import LGBMParams, LRParams, make_lgbm_pipeline, make_lr_pipeline
 
 
@@ -51,6 +51,7 @@ def tune_lr(
     folds: int,
     seed: int,
     config_dir: str | None = None,
+    columns: FeatureColumns | None = None,
 ) -> LRTuning:
     """Choose C by mean inner-CV ROC-AUC on Train; ties go to the smaller (more regularised) C."""
     splits = _folds(y, folds, seed)
@@ -60,7 +61,7 @@ def tune_lr(
         params = base.model_copy(update={"C": c})
         scores = []
         for tr, va in splits:
-            pipe = make_lr_pipeline(params, features_cfg, config_dir=config_dir)
+            pipe = make_lr_pipeline(params, features_cfg, columns=columns, config_dir=config_dir)
             pipe.fit(X.iloc[tr], y.iloc[tr])
             scores.append(roc_auc_score(y.iloc[va], pipe.predict_proba(X.iloc[va])[:, 1]))
         means.append(float(np.mean(scores)))
@@ -80,6 +81,7 @@ def tune_lgbm_rounds(
     max_rounds: int,
     early_stopping_rounds: int,
     config_dir: str | None = None,
+    columns: FeatureColumns | None = None,
 ) -> LGBMTuning:
     """Number of boosting rounds from early stopping on each inner-CV fold of Train.
 
@@ -93,6 +95,7 @@ def tune_lgbm_rounds(
             base.model_copy(update={"n_estimators": max_rounds}),
             features_cfg,
             config_dir=config_dir,
+            columns=columns,
         )
         prep: Pipeline = pipe.named_steps["prep"]
         model: LGBMClassifier = pipe.named_steps["model"]

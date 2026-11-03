@@ -1,0 +1,8 @@
+# Reproducible local measurements; limits are observations, not service guarantees.
+requests: 200
+warmup_requests: 20
+concurrency: 8
+workers: [1, 4]
+timeout_seconds: 30
+seed: 20261101
+representative_train_applicants: 100

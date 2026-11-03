@@ -1,0 +1,216 @@
+{
+  "expected": {
+    "ablation": [
+      {
+        "groups": [
+          "application"
+        ],
+        "metrics": {
+          "brier": 0.06773967019606113,
+          "log_loss": 0.2462914209014684,
+          "pr_auc": 0.24447116612364678,
+          "roc_auc": 0.756059853663844
+        },
+        "step": "application",
+        "vs_application": null
+      },
+      {
+        "groups": [
+          "application",
+          "bureau"
+        ],
+        "marginal": {
+          "candidate": 0.7586357740926221,
+          "ci_high": 0.005588586423483774,
+          "ci_low": -0.0001688539261105781,
+          "delta": 0.002575920428778078,
+          "reference": 0.756059853663844
+        },
+        "marginal_gain": 0.002575920428778078,
+        "metrics": {
+          "brier": 0.06753741146438719,
+          "log_loss": 0.2454218638304808,
+          "pr_auc": 0.24964137788527735,
+          "roc_auc": 0.7586357740926221
+        },
+        "served_by_rule": false,
+        "step": "bureau",
+        "vs_application": {
+          "candidate": 0.7586357740926221,
+          "ci_high": 0.005588586423483774,
+          "ci_low": -0.0001688539261105781,
+          "delta": 0.002575920428778078,
+          "reference": 0.756059853663844
+        }
+      },
+      {
+        "groups": [
+          "application",
+          "bureau",
+          "bureau_balance"
+        ],
+        "marginal": {
+          "candidate": 0.7608789296589982,
+          "ci_high": 0.004352094095937033,
+          "ci_low": 0.00010210514096391513,
+          "delta": 0.0022431555663761094,
+          "reference": 0.7586357740926221
+        },
+        "marginal_gain": 0.0022431555663761094,
+        "metrics": {
+          "brier": 0.06750340259636363,
+          "log_loss": 0.24499421469034702,
+          "pr_auc": 0.24961050333947826,
+          "roc_auc": 0.7608789296589982
+        },
+        "served_by_rule": false,
+        "step": "bureau_balance",
+        "vs_application": {
+          "candidate": 0.7608789296589982,
+          "ci_high": 0.007830298025707382,
+          "ci_low": 0.0021002254650502625,
+          "delta": 0.004819075995154187,
+          "reference": 0.756059853663844
+        }
+      },
+      {
+        "groups": [
+          "application",
+          "bureau",
+          "bureau_balance",
+          "previous"
+        ],
+        "marginal": {
+          "candidate": 0.7666555669033106,
+          "ci_high": 0.009233268844020719,
+          "ci_low": 0.0027079076843548907,
+          "delta": 0.0057766372443124325,
+          "reference": 0.7608789296589982
+        },
+        "marginal_gain": 0.0057766372443124325,
+        "metrics": {
+          "brier": 0.06707598262712701,
+          "log_loss": 0.2431688342285383,
+          "pr_auc": 0.25801404186096044,
+          "roc_auc": 0.7666555669033106
+        },
+        "served_by_rule": true,
+        "step": "previous",
+        "vs_application": {
+          "candidate": 0.7666555669033106,
+          "ci_high": 0.014199782955653597,
+          "ci_low": 0.006908287191560775,
+          "delta": 0.01059571323946662,
+          "reference": 0.756059853663844
+        }
+      },
+      {
+        "groups": [
+          "application",
+          "bureau",
+          "bureau_balance",
+          "previous",
+          "installments"
+        ],
+        "marginal": {
+          "candidate": 0.7735668513748243,
+          "ci_high": 0.010239568177386759,
+          "ci_low": 0.0033845124105404355,
+          "delta": 0.006911284471513679,
+          "reference": 0.7666555669033106
+        },
+        "marginal_gain": 0.006911284471513679,
+        "metrics": {
+          "brier": 0.06671811087713642,
+          "log_loss": 0.24129189713570917,
+          "pr_auc": 0.26620694314968407,
+          "roc_auc": 0.7735668513748243
+        },
+        "served_by_rule": true,
+        "step": "installments",
+        "vs_application": {
+          "candidate": 0.7735668513748243,
+          "ci_high": 0.022061360415875333,
+          "ci_low": 0.013056994018489374,
+          "delta": 0.0175069977109803,
+          "reference": 0.756059853663844
+        }
+      },
+      {
+        "groups": [
+          "application",
+          "bureau",
+          "bureau_balance",
+          "previous",
+          "installments",
+          "pos_cash"
+        ],
+        "marginal": {
+          "candidate": 0.7736578386491766,
+          "ci_high": 0.0024622321464178,
+          "ci_low": -0.0023486840192997486,
+          "delta": 9.098727435230547e-05,
+          "reference": 0.7735668513748243
+        },
+        "marginal_gain": 9.098727435230547e-05,
+        "metrics": {
+          "brier": 0.0667658790608822,
+          "log_loss": 0.24138649965119813,
+          "pr_auc": 0.26355160484141626,
+          "roc_auc": 0.7736578386491766
+        },
+        "served_by_rule": false,
+        "step": "pos_cash",
+        "vs_application": {
+          "candidate": 0.7736578386491766,
+          "ci_high": 0.02235387929686849,
+          "ci_low": 0.012987754042281245,
+          "delta": 0.017597984985332604,
+          "reference": 0.756059853663844
+        }
+      },
+      {
+        "groups": [
+          "application",
+          "bureau",
+          "bureau_balance",
+          "previous",
+          "installments",
+          "pos_cash",
+          "credit_card"
+        ],
+        "marginal": {
+          "candidate": 0.7758972743410841,
+          "ci_high": 0.004724425030174328,
+          "ci_low": -0.00023162721531635232,
+          "delta": 0.002239435691907543,
+          "reference": 0.7736578386491766
+        },
+        "marginal_gain": 0.002239435691907543,
+        "metrics": {
+          "brier": 0.06652644891396317,
+          "log_loss": 0.24046884771480154,
+          "pr_auc": 0.2680367305524565,
+          "roc_auc": 0.7758972743410841
+        },
+        "served_by_rule": false,
+        "step": "credit_card",
+        "vs_application": {
+          "candidate": 0.7758972743410841,
+          "ci_high": 0.024609711734891078,
+          "ci_low": 0.015224270080318037,
+          "delta": 0.019837420677240147,
+          "reference": 0.756059853663844
+        }
+      }
+    ],
+    "served_groups": [
+      "application",
+      "previous",
+      "installments"
+    ]
+  },
+  "kind": "metrics",
+  "path": "experiments/e2/summary.json",
+  "source_run_ids": "cf726679c64d467f8ed86c9837fa57d6"
+}

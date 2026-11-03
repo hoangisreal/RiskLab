@@ -55,3 +55,67 @@ def write_config_dir(root: Path, cfg: DataConfig, schema: RawSchema) -> Path:
         yaml.safe_dump(schema.model_dump(mode="json")), encoding="utf-8"
     )
     return cfg_dir
+
+
+@pytest.fixture(scope="session")
+def mlflow_server(tmp_path_factory):
+    """Isolated HTTP tracking/registry service; clients never use its SQLite backend directly."""
+    import os
+    import socket
+    import subprocess
+    import sys
+    import time
+    import urllib.error
+    import urllib.request
+
+    root = tmp_path_factory.mktemp("mlflow-server")
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        port = listener.getsockname()[1]
+    uri = f"http://127.0.0.1:{port}"
+    env = {**os.environ, "MLFLOW_DISABLE_AGENT_HINT": "1"}
+    env.pop("MLFLOW_TRACKING_URI", None)
+    with open(root / "server.log", "w") as log:
+        process = subprocess.Popen(
+            [
+                sys.executable,
+                "-m",
+                "mlflow",
+                "server",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                str(port),
+                "--workers",
+                "1",
+                "--backend-store-uri",
+                f"sqlite:///{root / 'tracking.db'}",
+                "--artifacts-destination",
+                str(root / "artifacts"),
+            ],
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            env=env,
+            cwd=root,
+        )
+        try:
+            deadline = time.monotonic() + 60
+            while time.monotonic() < deadline:
+                try:
+                    with urllib.request.urlopen(uri + "/health", timeout=1) as response:
+                        if response.status == 200:
+                            break
+                except (OSError, urllib.error.URLError):
+                    if process.poll() is not None:
+                        pytest.fail((root / "server.log").read_text())
+                    time.sleep(0.2)
+            else:
+                pytest.fail("MLflow test server did not become ready")
+            yield uri
+        finally:
+            process.terminate()
+            try:
+                process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=10)

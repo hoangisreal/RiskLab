@@ -7,6 +7,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from risklab.monitoring.profile import ReferenceProfile
+from risklab.registry.bundle import ServingConfig, validate_serving_config
+
 
 @dataclass
 class LoadedModel:
@@ -17,6 +20,8 @@ class LoadedModel:
     feature_groups: list[str]
     run_id: str | None = None
     lock_id: str | None = None
+    serving_config: ServingConfig | None = None
+    reference_profile: ReferenceProfile | None = None
 
 
 class ModelStoreError(Exception):
@@ -50,10 +55,14 @@ class ModelStore:
         threshold: float,
         contract_version: str,
         feature_groups: list[str],
-        expected_contract: str = "1.0",
+        expected_contract: str | None = None,
     ) -> LoadedModel:
         import pickle  # noqa: S403 - trusted local artifact
 
+        if expected_contract is None:
+            from risklab.features.registry import load_registry
+
+            expected_contract = load_registry().contract_version
         if contract_version != expected_contract:
             raise ModelStoreError(
                 "contract_version "
@@ -77,25 +86,48 @@ class ModelStore:
 __all__ = ["LoadedModel", "ModelStore", "ModelStoreError", "load_from_registry"]
 
 
-def load_from_registry(store: ModelStore) -> LoadedModel:
+def load_from_registry(
+    store: ModelStore,
+    *,
+    version: str | None = None,
+    expected_contract: str | None = None,
+    expected_protocol: dict[str, str] | None = None,
+) -> LoadedModel:
     """Resolve @champion to a pinned version and load it (startup path)."""
     import mlflow
     import mlflow.sklearn
 
-    from risklab.registry.client import MODEL_NAME, resolve_champion
+    from risklab.registry.client import (
+        MODEL_NAME,
+        read_reference_profile,
+        read_serving_config,
+        resolve_champion,
+        resolve_version,
+    )
 
-    info = resolve_champion()
+    if expected_contract is None:
+        from risklab.features.registry import load_registry
+
+        expected_contract = load_registry().contract_version
+    info = resolve_version(version) if version is not None else resolve_champion()
     version = str(info["version"])
-    tags = dict(info.get("tags") or {})
+    config = read_serving_config(info)
+    validate_serving_config(config, expected_contract=expected_contract)
+    if expected_protocol is not None and config.protocol_hashes != expected_protocol:
+        raise ModelStoreError("model feature/config code differs from this serving image")
+    profile = read_reference_profile(info, config)
     model = mlflow.sklearn.load_model(f"models:/{MODEL_NAME}/{version}")
+    validate_serving_config(config, expected_contract=expected_contract, model=model)
     loaded = LoadedModel(
         version=version,
         model=model,
-        threshold=float(tags.get("threshold", 0.1)),
-        contract_version=str(tags.get("contract_version", "1.0")),
-        feature_groups=[g for g in str(tags.get("feature_groups", "")).split(",") if g],
+        threshold=config.threshold,
+        contract_version=config.contract_version,
+        feature_groups=config.feature_groups,
         run_id=info.get("run_id"),
-        lock_id=tags.get("lock_id"),
+        lock_id=config.lock_id,
+        serving_config=config,
+        reference_profile=profile,
     )
     store.swap(loaded)
     return loaded

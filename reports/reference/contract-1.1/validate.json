@@ -1,0 +1,18 @@
+{
+  "expected": {
+    "inputs": {
+      "application_test.csv": "a36161331d839150a67b6216d4de066f543a3b01a34061507d40e76612e0dec8",
+      "application_train.csv": "52e96b895b1112e1c853f670e58372719c8441c5ed1c57ac2f7fad559d784f5f"
+    },
+    "step": "validate",
+    "summary": {
+      "accepted_exceptions": 1,
+      "checks": 36,
+      "errors": 0,
+      "status": "passed",
+      "warnings": 0
+    }
+  },
+  "kind": "provenance",
+  "path": "manifests/validate.json"
+}

@@ -3,21 +3,36 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from risklab.config import _Strict, load_model
 
 COST_FILE = "cost.yaml"
 
 
+class LoanCostConfig(_Strict):
+    lgd: float = Field(gt=0, le=1, allow_inf_nan=False)
+    margin: float = Field(gt=0, le=1, allow_inf_nan=False)
+    sensitivity_lgd: list[float]
+    sensitivity_margin: list[float]
+
+
 class CostConfig(_Strict):
-    cost_fp: float = Field(gt=0)
-    cost_fn: float = Field(gt=0)
+    cost_fp: float = Field(gt=0, allow_inf_nan=False)
+    cost_fn: float = Field(gt=0, allow_inf_nan=False)
     threshold_grid_size: int = Field(default=200, ge=10)
     sensitivity_ratios: list[float] = Field(default_factory=lambda: [2.0, 5.0, 10.0, 20.0])
+    policy: Literal["constant", "per_loan"] = "constant"
+    loan: LoanCostConfig | None = None
+
+    @model_validator(mode="after")
+    def required_loan_assumptions(self) -> CostConfig:
+        if self.policy == "per_loan" and self.loan is None:
+            raise ValueError("per-loan policy needs configured LGD/margin")
+        return self
 
 
 def load_cost_config(config_dir: Path | str | None = None) -> CostConfig:
@@ -30,7 +45,13 @@ def bayes_threshold(cost_fp: float, cost_fn: float) -> float:
 
 
 def expected_cost_at(
-    y: np.ndarray, p: np.ndarray, threshold: float, *, cost_fp: float, cost_fn: float
+    y: np.ndarray,
+    p: np.ndarray,
+    threshold: float,
+    *,
+    cost_fp: float,
+    cost_fn: float,
+    exposure: np.ndarray | None = None,
 ) -> dict[str, float]:
     y = np.asarray(y)
     p = np.asarray(p, dtype=float)
@@ -40,10 +61,23 @@ def expected_cost_at(
     tp = float(((pred == 1) & (y == 1)).sum())
     tn = float(((pred == 0) & (y == 0)).sum())
     n = float(len(y))
+    if n == 0 or p.shape != y.shape:
+        raise ValueError("nonempty labels and scores must have matching shape")
+    if exposure is None:
+        total = cost_fp * fp + cost_fn * fn
+    else:
+        exposure = np.asarray(exposure, dtype=float)
+        if exposure.shape != y.shape or not np.isfinite(exposure).all() or (exposure <= 0).any():
+            raise ValueError("per-loan exposure must be finite, positive and match labels")
+        total = float(
+            np.sum(
+                exposure * (cost_fp * ((pred == 1) & (y == 0)) + cost_fn * ((pred == 0) & (y == 1)))
+            )
+        )
     return {
         "threshold": float(threshold),
-        "expected_cost_per_applicant": float((cost_fp * fp + cost_fn * fn) / n),
-        "total_cost": float(cost_fp * fp + cost_fn * fn),
+        "expected_cost_per_applicant": float(total / n),
+        "total_cost": float(total),
         "approval_rate": float((pred == 0).mean()),
         "precision": float(tp / (tp + fp)) if (tp + fp) > 0 else 0.0,
         "recall": float(tp / (tp + fn)) if (tp + fn) > 0 else 0.0,
@@ -53,20 +87,35 @@ def expected_cost_at(
 
 
 def cost_curve(
-    y: np.ndarray, p: np.ndarray, *, cost_fp: float, cost_fn: float, grid_size: int = 200
+    y: np.ndarray,
+    p: np.ndarray,
+    *,
+    cost_fp: float,
+    cost_fn: float,
+    grid_size: int = 200,
+    exposure: np.ndarray | None = None,
 ) -> list[dict[str, float]]:
     grid = np.unique(
-        np.concatenate([np.linspace(0.01, 0.99, grid_size), [bayes_threshold(cost_fp, cost_fn)]])
+        np.concatenate([np.linspace(0.0, 1.0, grid_size), [bayes_threshold(cost_fp, cost_fn)]])
     )
     return [
-        expected_cost_at(y, p, float(t), cost_fp=cost_fp, cost_fn=cost_fn) for t in sorted(grid)
+        expected_cost_at(y, p, float(t), cost_fp=cost_fp, cost_fn=cost_fn, exposure=exposure)
+        for t in sorted(grid)
     ]
 
 
 def choose_threshold(
-    y: np.ndarray, p: np.ndarray, *, cost_fp: float, cost_fn: float, grid_size: int = 200
+    y: np.ndarray,
+    p: np.ndarray,
+    *,
+    cost_fp: float,
+    cost_fn: float,
+    grid_size: int = 200,
+    exposure: np.ndarray | None = None,
 ) -> dict[str, Any]:
-    curve = cost_curve(y, p, cost_fp=cost_fp, cost_fn=cost_fn, grid_size=grid_size)
+    curve = cost_curve(
+        y, p, cost_fp=cost_fp, cost_fn=cost_fn, grid_size=grid_size, exposure=exposure
+    )
     best = min(curve, key=lambda r: (r["expected_cost_per_applicant"], r["threshold"]))
     bt = bayes_threshold(cost_fp, cost_fn)
     return {

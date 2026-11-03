@@ -1,4 +1,10 @@
-# API limits (MASTER_PLAN Section 10.2). Payloads are never logged.
+# Contract 1.1. Raw records are bounded before feature computation; payloads are never logged.
 max_records_per_source: 5000
 max_body_bytes: 5000000
 explanation_top_k: 5
+required_application_fields: [AMT_INCOME_TOTAL, AMT_CREDIT]
+duckdb:
+  memory_limit: 256MB
+  temp_directory: data/duckdb_tmp/api
+  threads: 1
+  preserve_insertion_order: false

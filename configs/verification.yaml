@@ -1,0 +1,3 @@
+# Same-platform checks. Cross-platform differences require a documented config change.
+metric_atol: 0.000001
+feature_rtol: 0.000000001

@@ -1,0 +1,7 @@
+# Existing gate thresholds, now recorded as configuration before future promotions.
+auc_tolerance: 0.005
+logloss_tolerance: 0.01
+brier_tolerance: 0.005
+ece_limit: 0.05
+floor_roc_auc: 0.70
+floor_log_loss: 0.30

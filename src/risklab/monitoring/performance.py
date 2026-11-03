@@ -7,24 +7,69 @@ from typing import Any
 import numpy as np
 
 from risklab.models.calibrate import expected_calibration_error
-from risklab.models.evaluate import compute_metrics
+from risklab.models.evaluate import bootstrap_metrics, compute_metrics
 from risklab.models.threshold import expected_cost_at
 
 
 def performance_report(
-    y: np.ndarray, p: np.ndarray, *, threshold: float, cost_fp: float = 1.0, cost_fn: float = 10.0
+    y: np.ndarray,
+    p: np.ndarray,
+    *,
+    threshold: float,
+    cost_fp: float = 1.0,
+    cost_fn: float = 10.0,
+    exposure: np.ndarray | None = None,
+    n_resamples: int | None = None,
+    seed: int = 0,
+    ci_level: float = 0.95,
 ) -> dict[str, Any]:
     y = np.asarray(y)
     p = np.asarray(p, dtype=float)
     out: dict[str, Any] = dict(compute_metrics(y, p))
     out["ece"] = expected_calibration_error(y, p)
     out["calibration_in_the_large"] = float(p.mean() - y.mean())
-    out["cost"] = expected_cost_at(y, p, threshold, cost_fp=cost_fp, cost_fn=cost_fn)
+    out["cost"] = expected_cost_at(
+        y, p, threshold, cost_fp=cost_fp, cost_fn=cost_fn, exposure=exposure
+    )
+    if n_resamples is not None:
+        out["confidence_intervals"] = bootstrap_metrics(
+            y, p, n_resamples=n_resamples, seed=seed, ci_level=ci_level, stratified=False
+        )
     return out
 
 
+def performance_alerts(
+    report: dict[str, Any],
+    baseline: dict[str, float],
+    *,
+    auc_drop: float,
+    log_loss_increase: float,
+    brier_increase: float,
+    min_auc: float,
+    max_log_loss: float,
+) -> list[str]:
+    """Alert only when a batch interval lies beyond the declared tolerance or absolute floor."""
+    intervals = report["confidence_intervals"]
+    alerts = []
+    if intervals["roc_auc"]["ci_high"] < max(min_auc, baseline["roc_auc"] - auc_drop):
+        alerts.append("roc_auc")
+    if intervals["log_loss"]["ci_low"] > min(
+        max_log_loss, baseline["log_loss"] + log_loss_increase
+    ):
+        alerts.append("log_loss")
+    if intervals["brier"]["ci_low"] > baseline["brier"] + brier_increase:
+        alerts.append("brier")
+    return alerts
+
+
 def _bootstrap_ci(
-    values_fn: Any, y: np.ndarray, p: np.ndarray, *, n: int = 500, seed: int = 0
+    values_fn: Any,
+    y: np.ndarray,
+    p: np.ndarray,
+    *,
+    n: int = 500,
+    seed: int = 0,
+    ci_level: float = 0.95,
 ) -> tuple[float, float]:
     rng = np.random.default_rng(seed)
     vals: list[float] = []
@@ -38,7 +83,8 @@ def _bootstrap_ci(
             continue
     if not vals:
         return (float("nan"), float("nan"))
-    return (float(np.quantile(vals, 0.025)), float(np.quantile(vals, 0.975)))
+    alpha = (1 - ci_level) / 2
+    return (float(np.quantile(vals, alpha)), float(np.quantile(vals, 1 - alpha)))
 
 
 def subgroup_report(
@@ -51,6 +97,8 @@ def subgroup_report(
     min_n: int = 200,
     min_positives: int = 20,
     seed: int = 0,
+    n_resamples: int = 500,
+    ci_level: float = 0.95,
 ) -> list[dict[str, Any]]:
     """Per-group metrics with suppression below ``min_n``/``min_positives``."""
     from sklearn.metrics import brier_score_loss, roc_auc_score
@@ -70,14 +118,32 @@ def subgroup_report(
                 continue
             row["suppressed"] = False
             row["auc"] = float(roc_auc_score(y[m], p[m]))
-            lo, hi = _bootstrap_ci(lambda yy, pp: roc_auc_score(yy, pp), y[m], p[m], seed=seed)
-            row["auc_ci"] = [lo, hi]
+            intervals = bootstrap_metrics(
+                y[m], p[m], n_resamples=n_resamples, seed=seed, ci_level=ci_level, stratified=False
+            )
+            row["auc_ci"] = list(intervals["roc_auc"].values())
             row["brier"] = float(brier_score_loss(y[m], p[m]))
             row["calibration_in_the_large"] = float(p[m].mean() - y[m].mean())
             cost = expected_cost_at(y[m], p[m], threshold, cost_fp=1.0, cost_fn=10.0)
             row["approval_rate"] = cost["approval_rate"]
             row["fpr"] = cost["fpr"]
             row["fnr"] = cost["fnr"]
+            functions: dict[str, Any] = {
+                "calibration_in_the_large": lambda yy, pp: pp.mean() - yy.mean(),
+                **{
+                    key: (
+                        lambda yy, pp, key=key: expected_cost_at(
+                            yy, pp, threshold, cost_fp=1.0, cost_fn=10.0
+                        )[key]
+                    )
+                    for key in ("approval_rate", "fpr", "fnr")
+                },
+            }
+            row["brier_ci"] = list(intervals["brier"].values())
+            for key, function in functions.items():
+                row[f"{key}_ci"] = list(
+                    _bootstrap_ci(function, y[m], p[m], n=n_resamples, seed=seed, ci_level=ci_level)
+                )
             out.append(row)
     return out
 

@@ -1,0 +1,15 @@
+.git
+.venv
+.agents
+.codex
+.aws
+.kaggle
+.env
+__pycache__
+.pytest_cache
+.mypy_cache
+.ruff_cache
+data
+mlflow-data
+features
+reports

@@ -1,0 +1,5 @@
+# Parity is measured on Train; Selection only verifies the chosen artifact's metrics.
+parity_sample_size: 500
+parity_seed: 20261101
+parity_rtol: 0.000000001
+metric_atol: 0.000000001

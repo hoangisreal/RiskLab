@@ -1,4 +1,4 @@
-.PHONY: setup lint format typecheck test ingest partition validate synthetic mlflow e1 diagnostics
+.PHONY: setup lint format typecheck test ingest partition validate synthetic mlflow e1 diagnostics features e2 e3 e4 reproduce
 
 setup:
 	uv sync --locked
@@ -15,7 +15,7 @@ typecheck:
 	uv run mypy src
 
 test: lint typecheck
-	uv run pytest -m "not data"
+	OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MLFLOW_DISABLE_AGENT_HINT=1 uv run pytest -m "not data"
 
 ingest:
 	uv run risklab ingest
@@ -54,3 +54,8 @@ e3:
 
 e4:
 	uv run risklab e4
+
+# Use an isolated output root: make reproduce OUT=/tmp/risklab-reproduce
+reproduce:
+	@test -n "$(OUT)" || (echo 'Set OUT to an absent or empty output directory'; exit 1)
+	uv run python scripts/reproduce.py --out "$(OUT)"

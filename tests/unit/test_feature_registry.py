@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def test_registry_groups_and_no_target_in_feature_sql() -> None:
     reg = load_registry(ROOT / "configs")
-    assert reg.contract_version == "1.0"
+    assert reg.contract_version == "1.1"
     assert set(reg.all_groups()) == {
         "application",
         "bureau",

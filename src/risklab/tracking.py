@@ -33,6 +33,8 @@ def require_tracking_uri() -> str:
             f"{TRACKING_URI_ENV} is not set. Start the server with `make mlflow` and export "
             f"{TRACKING_URI_ENV}=http://127.0.0.1:5000"
         )
+    if not uri.startswith(("http://", "https://")):
+        raise TrackingError("MLFLOW_TRACKING_URI must point at an HTTP tracking server")
     return uri
 
 

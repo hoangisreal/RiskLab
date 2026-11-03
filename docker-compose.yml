@@ -12,11 +12,14 @@ services:
       retries: 6
   api:
     build: {context: ., target: api}
-    environment: {MLFLOW_TRACKING_URI: "http://mlflow:5000", RISKLAB_ADMIN_API_KEY: "${RISKLAB_ADMIN_API_KEY:-}"}
+    environment: {MLFLOW_TRACKING_URI: "http://mlflow:5000", RISKLAB_ADMIN_API_KEY: "${RISKLAB_ADMIN_API_KEY:-}", WEB_CONCURRENCY: "${RISKLAB_API_WORKERS:-1}"}
     ports: ["127.0.0.1:8000:8000"]
     depends_on: {mlflow: {condition: service_healthy}}
+    volumes: ["./data:/app/data:ro", "./reports:/app/reports"]
+    tmpfs: ["/app/data/duckdb_tmp:uid=1000,gid=1000"]
   train:
     profiles: ["jobs"]
     build: {context: ., target: train}
-    volumes: ["./data:/app/data:ro", "./reports:/app/reports"]
-    environment: {MLFLOW_TRACKING_URI: "http://mlflow:5000"}
+    working_dir: /workspace
+    volumes: [".:/workspace:ro", "./reports:/workspace/reports", "./features:/workspace/features", "./data/monitoring:/workspace/data/monitoring", "./data/duckdb_tmp:/workspace/data/duckdb_tmp"]
+    environment: {MLFLOW_TRACKING_URI: "http://mlflow:5000", PYTHONPATH: "/workspace/src", GIT_OPTIONAL_LOCKS: "0", OPENBLAS_NUM_THREADS: "1", OMP_NUM_THREADS: "1", MLFLOW_DISABLE_AGENT_HINT: "1"}

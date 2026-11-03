@@ -67,3 +67,16 @@ def test_gate_first_registration_and_champion_compare() -> None:
         lock_present=True,
     )
     assert not worse["passed"]
+
+
+def test_partial_loan_costs_use_each_applicants_exposure():
+    y = np.array([0, 1, 0, 1])
+    p = np.array([0.8, 0.1, 0.1, 0.8])
+    amounts = np.array([100.0, 1000.0, 100.0, 100.0])
+    cost = expected_cost_at(y, p, 0.5, cost_fp=0.05, cost_fn=0.5, exposure=amounts)
+    assert cost["total_cost"] == pytest.approx(5 + 500)
+    assert cost["expected_cost_per_applicant"] == pytest.approx(505 / 4)
+    assert cost["approval_rate"] == 0.5
+    for invalid in (np.array([-1.0, 1.0, 1.0, 1.0]), np.array([np.nan, 1.0, 1.0, 1.0])):
+        with pytest.raises(ValueError):
+            expected_cost_at(y, p, 0.5, cost_fp=0.05, cost_fn=0.5, exposure=invalid)

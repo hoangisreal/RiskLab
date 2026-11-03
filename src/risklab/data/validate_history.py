@@ -7,6 +7,7 @@ keyed on SK_ID_CURR are still usable by the feature SQL, while orphan bureau_bal
 
 from __future__ import annotations
 
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -21,92 +22,100 @@ class HistoryValidationError(Exception):
     """Raised when the Parquet inputs are missing."""
 
 
-_QUERIES: dict[str, str] = {
-    "bureau_balance_orphan_rows": (
-        "SELECT COUNT(*) FROM bureau_balance bb ANTI JOIN bureau b USING (SK_ID_BUREAU)"
-    ),
-    "pos_orphan_rows": (
-        "SELECT COUNT(*) FROM pos_cash_balance p "
-        "ANTI JOIN previous_application pa USING (SK_ID_PREV)"
-    ),
-    "cc_orphan_rows": (
-        "SELECT COUNT(*) FROM credit_card_balance c "
-        "ANTI JOIN previous_application pa USING (SK_ID_PREV)"
-    ),
-    "inst_orphan_rows": (
-        "SELECT COUNT(*) FROM installments_payments i "
-        "ANTI JOIN previous_application pa USING (SK_ID_PREV)"
-    ),
-    "bureau_enddate_fact_positive": "SELECT COUNT(*) FROM bureau WHERE DAYS_ENDDATE_FACT > 0",
-    "inst_entry_payment_positive": (
-        "SELECT COUNT(*) FROM installments_payments WHERE DAYS_ENTRY_PAYMENT > 0"
-    ),
-    "bureau_balance_months_positive": (
-        "SELECT COUNT(*) FROM bureau_balance WHERE MONTHS_BALANCE > 0"
-    ),
-    "pos_months_positive": "SELECT COUNT(*) FROM pos_cash_balance WHERE MONTHS_BALANCE > 0",
-    "cc_months_positive": "SELECT COUNT(*) FROM credit_card_balance WHERE MONTHS_BALANCE > 0",
-    "bureau_balance_dup_keys": (
-        "SELECT COUNT(*) - COUNT(*) FILTER (WHERE TRUE) * 0 - "
-        "(SELECT COUNT(*) FROM (SELECT DISTINCT SK_ID_BUREAU, MONTHS_BALANCE FROM bureau_balance)) "
-        "FROM bureau_balance"
-    ),
-}
+def validate_history(data_cfg: DataConfig, *, config_dir: Path | None = None) -> dict[str, Any]:
+    """Validate keys and log the exact exclusions used by shared historical cleaning."""
+    from risklab.config import load_model, load_raw_schema
+    from risklab.features.history_clean import HistoricalConfig, install_history_views
+    from risklab.manifest import build_manifest, sha256_file, write_json_atomic
 
-
-def validate_history(data_cfg: DataConfig) -> dict[str, Any]:
-    """Run the count checks over the ingested Parquet files."""
-    parquet = data_cfg.parquet_dir
-    tables = (
-        "bureau",
-        "bureau_balance",
-        "previous_application",
-        "pos_cash_balance",
-        "credit_card_balance",
-        "installments_payments",
-    )
-    for table in tables:
-        if not (parquet / f"{table}.parquet").is_file():
-            raise HistoryValidationError(
-                f"Parquet file not found: {parquet / (table + '.parquet')}"
-            )
+    config_dir = config_dir or data_cfg.reports_dir.parent / "configs"
+    cfg = load_model(config_dir, "historical.yaml", HistoricalConfig)
+    root = config_dir.parent
+    query_text = (root / cfg.validation_sql).read_text(encoding="utf-8")
+    queries = {}
+    for block in query_text.split("-- name:")[1:]:
+        name, sql = block.strip().split("\n", 1)
+        queries[name.strip()] = sql.strip().replace(
+            "{installment_amount_tolerance}", str(cfg.installment_amount_tolerance)
+        )
+    if not set(cfg.error_checks) <= set(queries):
+        raise HistoryValidationError("unknown configured historical error checks")
     con = duckdb_connect(data_cfg.duckdb)
     try:
-        for table in tables:
+        for table in cfg.tables:
+            path = data_cfg.parquet_dir / f"{table}.parquet"
+            if not path.is_file():
+                raise HistoryValidationError(f"Parquet file missing: {path}")
             con.execute(
-                "CREATE OR REPLACE VIEW "
-                + table
-                + " AS SELECT * FROM read_parquet("
-                + quote_str(str(parquet / f"{table}.parquet"))
-                + ")"
+                f"CREATE VIEW {table} AS SELECT * FROM read_parquet({quote_str(str(path))})"
             )
-        counts: dict[str, int] = {}
-        for name, sql in _QUERIES.items():
-            if name == "bureau_balance_dup_keys":
-                total = con.execute("SELECT COUNT(*) FROM bureau_balance").fetchone()
-                distinct = con.execute(
-                    "SELECT COUNT(*) FROM (SELECT DISTINCT SK_ID_BUREAU, "
-                    "MONTHS_BALANCE FROM bureau_balance)"
-                ).fetchone()
-                counts[name] = int((total[0] if total else 0) - (distinct[0] if distinct else 0))
-                continue
-            row = con.execute(sql).fetchone()
-            counts[name] = int(row[0]) if row else 0
+            con.execute(f"CREATE VIEW raw_{table} AS SELECT * FROM {table}")
+        counts = {name: int(con.sql(sql).fetchall()[0][0]) for name, sql in queries.items()}
+        raw_counts = {
+            table: int(con.sql(f"SELECT COUNT(*) FROM {table}").fetchall()[0][0])
+            for table in cfg.tables
+        }
+        # Preserve raw views as direct Parquet scans before replacing the public names.
+        for table in cfg.tables:
+            path = data_cfg.parquet_dir / f"{table}.parquet"
+            con.execute(
+                f"CREATE OR REPLACE VIEW raw_{table} AS SELECT * "
+                f"FROM read_parquet({quote_str(str(path))})"
+            )
+        install_history_views(con, config_dir=config_dir, schema=load_raw_schema(config_dir))
+        excluded = {
+            table: raw_counts[table]
+            - int(con.sql(f"SELECT COUNT(*) FROM {table}").fetchall()[0][0])
+            for table in cfg.tables
+        }
+        exclusion_reasons = {}
+        sentinel_counts = {}
+        for table, rules in cfg.tables.items():
+            for column in rules.non_future_columns:
+                exclusion_reasons[f"{table}.{column}.future"] = int(
+                    con.sql(f"SELECT COUNT(*) FROM raw_{table} WHERE {column} > 0").fetchall()[0][0]
+                )
+            for column in rules.required_event_columns:
+                exclusion_reasons[f"{table}.{column}.missing"] = int(
+                    con.sql(f"SELECT COUNT(*) FROM raw_{table} WHERE {column} IS NULL").fetchall()[
+                        0
+                    ][0]
+                )
+            for column in rules.sentinel_columns:
+                sentinel_counts[f"{table}.{column}"] = int(
+                    con.sql(
+                        f"SELECT COUNT(*) FROM raw_{table} WHERE {column} = ?",
+                        params=[cfg.sentinel_value],
+                    ).fetchall()[0][0]
+                )
     except duckdb.Error as exc:
-        raise HistoryValidationError(f"DuckDB error during history validation: {exc}") from exc
+        raise HistoryValidationError(f"DuckDB history validation failed: {exc}") from exc
     finally:
         con.close()
-    temporal_ok = all(
-        counts[k] == 0
-        for k in (
-            "bureau_enddate_fact_positive",
-            "inst_entry_payment_positive",
-            "bureau_balance_months_positive",
-            "pos_months_positive",
-            "cc_months_positive",
-        )
+    errors = [name for name in cfg.error_checks if counts[name]]
+    report = {
+        "counts": counts,
+        "excluded_rows": excluded,
+        "exclusion_reasons": exclusion_reasons,
+        "exclusion_reason_counts_overlap": True,
+        "sentinels_to_null": sentinel_counts,
+        "errors": errors,
+        "passed": not errors,
+        "temporal_valid": not any(excluded.values()),
+        "status": "failed"
+        if errors
+        else ("passed_with_exclusions" if any(excluded.values()) else "passed"),
+    }
+    write_json_atomic(data_cfg.reports_dir / "validation/history.json", report)
+    manifest = build_manifest(
+        "validate-history",
+        config=cfg.model_dump(),
+        inputs={"data_manifest": sha256_file(data_cfg.manifest_path)},
+        summary=report,
+        git_cwd=root,
     )
-    return {"counts": counts, "temporal_valid": temporal_ok}
+    write_json_atomic(data_cfg.reports_dir / "manifests/validate-history.json", manifest)
+    return report
 
 
 def sql_files_reference_target(sql_dir: Path) -> list[str]:
@@ -119,3 +128,42 @@ def sql_files_reference_target(sql_dir: Path) -> list[str]:
 
 
 __all__ = ["HistoryValidationError", "sql_files_reference_target", "validate_history"]
+
+
+def ensure_history_validated(data_cfg: DataConfig, config_dir: Path) -> None:
+    """Verify one immutable input snapshot once per process, before any history feature build."""
+    import json
+
+    from risklab.manifest import sha256_file
+
+    document = json.loads(data_cfg.manifest_path.read_text())
+    paths = [
+        data_cfg.manifest_path,
+        config_dir / "historical.yaml",
+        config_dir.parent / "sql/validation/history.sql",
+    ]
+    paths += [data_cfg.parquet_dir / name for name in document["outputs"]]
+    paths += [data_cfg.raw_dir / name for name in document["inputs"]]
+    fingerprint = tuple(
+        (str(path), path.stat().st_size, path.stat().st_mtime_ns, path.stat().st_ctime_ns)
+        for path in paths
+    )
+    _validated_snapshot(config_dir, fingerprint, sha256_file(data_cfg.manifest_path))
+
+
+@lru_cache(maxsize=8)
+def _validated_snapshot(config_dir: Path, fingerprint: tuple, manifest_hash: str) -> None:
+    import json
+
+    from risklab.config import load_data_config
+    from risklab.manifest import sha256_file
+
+    cfg = load_data_config(config_dir)
+    document = json.loads(cfg.manifest_path.read_text())
+    for section, directory in (("inputs", cfg.raw_dir), ("outputs", cfg.parquet_dir)):
+        for name, expected in document[section].items():
+            if sha256_file(directory / name) != expected:
+                raise HistoryValidationError(f"{name} no longer matches ingest; run ingest again")
+    report = validate_history(cfg, config_dir=config_dir)
+    if not report["passed"]:
+        raise HistoryValidationError(f"historical key conflicts: {report['errors']}")

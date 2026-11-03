@@ -13,7 +13,7 @@ class HistorySource(BaseModel):
 
 
 class PredictRequest(BaseModel):
-    contract_version: str = "1.0"
+    contract_version: str = "1.1"
     request_id: str | None = None
     application: dict[str, Any]
     history: dict[str, HistorySource] = Field(default_factory=dict)
@@ -22,6 +22,8 @@ class PredictRequest(BaseModel):
 
 class Explanation(BaseModel):
     space: str = "log_odds_uncalibrated"
+    base_value: float
+    raw_log_odds: float
     top_contributions: list[dict[str, Any]] = Field(default_factory=list)
 
 
@@ -38,7 +40,7 @@ class PredictResponse(BaseModel):
 
 
 class MonitoringRequest(BaseModel):
-    batch_id: str
+    batch_id: str = Field(pattern=r"^[A-Za-z0-9_-]+$")
     model_version: str | None = None
 
 

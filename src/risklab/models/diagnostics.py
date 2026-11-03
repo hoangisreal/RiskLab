@@ -38,6 +38,8 @@ class DiagnosticsConfig(_Strict):
     screening_threshold: float = Field(gt=0, lt=0.5)
     expected_strong_prefixes: list[str] = Field(default_factory=list)
     top_n: int = Field(ge=1)
+    maximum_importance_share: float = Field(default=0.50, gt=0, le=1)
+    train_selection_auc_gap: float = Field(default=0.05, gt=0, lt=1)
 
 
 def label_permutation_test(

@@ -10,3 +10,5 @@ screening_threshold: 0.20
 expected_strong_prefixes:
   - EXT_SOURCE_
 top_n: 15
+maximum_importance_share: 0.50
+train_selection_auc_gap: 0.05

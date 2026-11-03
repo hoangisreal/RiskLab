@@ -57,6 +57,44 @@ def compute_metrics(
     }
 
 
+class _BootstrapScorer:
+    """Exact empirical metrics from resampled row counts; ranks are sorted only once."""
+
+    def __init__(self, y: np.ndarray, p: np.ndarray):
+        self.y = y
+        self.order = np.argsort(p, kind="stable")
+        self.groups = np.r_[0, np.flatnonzero(np.diff(p[self.order])) + 1]
+        self.brier = (p - y) ** 2
+        clipped = np.clip(p, LOG_LOSS_EPS, 1 - LOG_LOSS_EPS)
+        self.loss = -(y * np.log(clipped) + (1 - y) * np.log1p(-clipped))
+
+    def score(self, weights: np.ndarray, metrics: Sequence[str]) -> dict[str, float]:
+        n = weights.sum()
+        result = {}
+        if "roc_auc" in metrics or "pr_auc" in metrics:
+            positive = np.add.reduceat((weights * self.y)[self.order], self.groups).astype(float)
+            negative = np.add.reduceat((weights * (1 - self.y))[self.order], self.groups).astype(
+                float
+            )
+            pos, neg = positive.sum(), negative.sum()
+            if pos == 0 or neg == 0:
+                raise EvaluationError("bootstrap sample contains a single class")
+            if "roc_auc" in metrics:
+                result["roc_auc"] = float(
+                    np.sum(positive * (np.cumsum(negative) - negative / 2)) / (pos * neg)
+                )
+            if "pr_auc" in metrics:
+                tp = np.cumsum(positive[::-1])
+                total = np.cumsum((positive + negative)[::-1])
+                precision = np.divide(tp, total, out=np.zeros_like(tp), where=total != 0)
+                result["pr_auc"] = float(np.sum(positive[::-1] * precision) / pos)
+        if "brier" in metrics:
+            result["brier"] = float(np.sum(weights * self.brier) / n)
+        if "log_loss" in metrics:
+            result["log_loss"] = float(np.sum(weights * self.loss) / n)
+        return result
+
+
 def paired_bootstrap(
     y: Sequence[int] | np.ndarray,
     p_candidate: Sequence[float] | np.ndarray,
@@ -89,6 +127,7 @@ def paired_bootstrap(
     full_c, full_r = compute_metrics(yy, pc), compute_metrics(yy, pr)
     rng = np.random.default_rng(seed)
     n = yy.size
+    candidate_scorer, reference_scorer = _BootstrapScorer(yy, pc), _BootstrapScorer(yy, pr)
     deltas: dict[str, list[float]] = {m: [] for m in metrics}
     done = 0
     while done < n_resamples:
@@ -96,7 +135,8 @@ def paired_bootstrap(
         ys = yy[idx]
         if ys.min() == ys.max():
             continue
-        mc, mr = compute_metrics(ys, pc[idx]), compute_metrics(ys, pr[idx])
+        weights = np.bincount(idx, minlength=n)
+        mc, mr = candidate_scorer.score(weights, metrics), reference_scorer.score(weights, metrics)
         for m in metrics:
             deltas[m].append(mc[m] - mr[m])
         done += 1
@@ -113,6 +153,47 @@ def paired_bootstrap(
             "ci_high": float(np.quantile(arr, 1.0 - alpha)),
         }
     return out
+
+
+def bootstrap_metrics(
+    y: np.ndarray,
+    p: np.ndarray,
+    *,
+    n_resamples: int,
+    seed: int,
+    ci_level: float,
+    stratified: bool = True,
+) -> dict[str, dict[str, float]]:
+    """Percentile intervals for one locked model; no fitting or model decisions."""
+    _check(y, p)
+    if n_resamples < 1 or not 0 < ci_level < 1:
+        raise EvaluationError("invalid bootstrap settings")
+    rng = np.random.default_rng(seed)
+    samples: dict[str, list[float]] = {k: [] for k in METRIC_NAMES}
+    scorer = _BootstrapScorer(y, p)
+    done = 0
+    while done < n_resamples:
+        # Stratified resampling keeps each class represented, including small fixtures.
+        idx = (
+            np.concatenate(
+                [
+                    rng.choice(np.flatnonzero(y == c), size=int((y == c).sum()), replace=True)
+                    for c in (0, 1)
+                ]
+            )
+            if stratified
+            else rng.integers(0, len(y), size=len(y))
+        )
+        if len(np.unique(y[idx])) < 2:
+            continue
+        for key, value in scorer.score(np.bincount(idx, minlength=len(y)), METRIC_NAMES).items():
+            samples[key].append(value)
+        done += 1
+    alpha = (1 - ci_level) / 2
+    return {
+        k: {"ci_low": float(np.quantile(v, alpha)), "ci_high": float(np.quantile(v, 1 - alpha))}
+        for k, v in samples.items()
+    }
 
 
 def save_predictions(

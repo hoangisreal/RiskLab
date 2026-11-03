@@ -1,0 +1,317 @@
+{
+  "expected": {
+    "ablation": [
+      {
+        "groups": [
+          "application"
+        ],
+        "metrics": {
+          "brier": 0.06767044320034547,
+          "log_loss": 0.24589633882275036,
+          "pr_auc": 0.2454615536756979,
+          "roc_auc": 0.7573479706545516
+        },
+        "step": "application",
+        "vs_application": null
+      },
+      {
+        "groups": [
+          "application",
+          "bureau"
+        ],
+        "marginal": {
+          "candidate": 0.7610921169474943,
+          "ci_high": 0.006448696751423518,
+          "ci_low": 0.0011473684477674112,
+          "delta": 0.0037441462929427294,
+          "reference": 0.7573479706545516
+        },
+        "marginal_gain": 0.0037441462929427294,
+        "metrics": {
+          "brier": 0.06742775236780424,
+          "log_loss": 0.2447710376071402,
+          "pr_auc": 0.2521032878576623,
+          "roc_auc": 0.7610921169474943
+        },
+        "served_by_rule": true,
+        "step": "bureau",
+        "vs_application": {
+          "candidate": 0.7610921169474943,
+          "ci_high": 0.006448696751423518,
+          "ci_low": 0.0011473684477674112,
+          "delta": 0.0037441462929427294,
+          "reference": 0.7573479706545516
+        }
+      },
+      {
+        "groups": [
+          "application",
+          "bureau",
+          "bureau_balance"
+        ],
+        "marginal": {
+          "candidate": 0.7619827204562224,
+          "ci_high": 0.003045774297495862,
+          "ci_low": -0.0016190246926677723,
+          "delta": 0.0008906035087280495,
+          "reference": 0.7610921169474943
+        },
+        "marginal_gain": 0.0008906035087280495,
+        "metrics": {
+          "brier": 0.06729235713089735,
+          "log_loss": 0.24439913407130118,
+          "pr_auc": 0.2561245518519784,
+          "roc_auc": 0.7619827204562224
+        },
+        "served_by_rule": false,
+        "step": "bureau_balance",
+        "vs_application": {
+          "candidate": 0.7619827204562224,
+          "ci_high": 0.007301684434186697,
+          "ci_low": 0.0016368879133606656,
+          "delta": 0.004634749801670779,
+          "reference": 0.7573479706545516
+        }
+      },
+      {
+        "groups": [
+          "application",
+          "bureau",
+          "bureau_balance",
+          "previous"
+        ],
+        "marginal": {
+          "candidate": 0.7676888653667401,
+          "ci_high": 0.00896686698071535,
+          "ci_low": 0.002731519954346343,
+          "delta": 0.005706144910517685,
+          "reference": 0.7619827204562224
+        },
+        "marginal_gain": 0.005706144910517685,
+        "metrics": {
+          "brier": 0.06689724481198693,
+          "log_loss": 0.24260377730744215,
+          "pr_auc": 0.2624670451816831,
+          "roc_auc": 0.7676888653667401
+        },
+        "served_by_rule": true,
+        "step": "previous",
+        "vs_application": {
+          "candidate": 0.7676888653667401,
+          "ci_high": 0.01379280277657279,
+          "ci_low": 0.00680903427917846,
+          "delta": 0.010340894712188464,
+          "reference": 0.7573479706545516
+        }
+      },
+      {
+        "groups": [
+          "application",
+          "bureau",
+          "bureau_balance",
+          "previous",
+          "installments"
+        ],
+        "marginal": {
+          "candidate": 0.7743111825783086,
+          "ci_high": 0.009846778165289548,
+          "ci_low": 0.0034675612528010965,
+          "delta": 0.006622317211568474,
+          "reference": 0.7676888653667401
+        },
+        "marginal_gain": 0.006622317211568474,
+        "metrics": {
+          "brier": 0.06664119788853663,
+          "log_loss": 0.24095739751537426,
+          "pr_auc": 0.2658985802461017,
+          "roc_auc": 0.7743111825783086
+        },
+        "served_by_rule": true,
+        "step": "installments",
+        "vs_application": {
+          "candidate": 0.7743111825783086,
+          "ci_high": 0.02090643539404789,
+          "ci_low": 0.01257239710166746,
+          "delta": 0.016963211923756938,
+          "reference": 0.7573479706545516
+        }
+      },
+      {
+        "groups": [
+          "application",
+          "bureau",
+          "bureau_balance",
+          "previous",
+          "installments",
+          "pos_cash"
+        ],
+        "marginal": {
+          "candidate": 0.7753377111552537,
+          "ci_high": 0.0031697670989059615,
+          "ci_low": -0.0011681730438763915,
+          "delta": 0.0010265285769451848,
+          "reference": 0.7743111825783086
+        },
+        "marginal_gain": 0.0010265285769451848,
+        "metrics": {
+          "brier": 0.06649296565579799,
+          "log_loss": 0.24047515358919166,
+          "pr_auc": 0.2694494652706093,
+          "roc_auc": 0.7753377111552537
+        },
+        "served_by_rule": false,
+        "step": "pos_cash",
+        "vs_application": {
+          "candidate": 0.7753377111552537,
+          "ci_high": 0.022204421471455106,
+          "ci_low": 0.013469970886681816,
+          "delta": 0.017989740500702123,
+          "reference": 0.7573479706545516
+        }
+      },
+      {
+        "groups": [
+          "application",
+          "bureau",
+          "bureau_balance",
+          "previous",
+          "installments",
+          "pos_cash",
+          "credit_card"
+        ],
+        "marginal": {
+          "candidate": 0.7770606686441577,
+          "ci_high": 0.0042556564520738775,
+          "ci_low": -0.000784228571523457,
+          "delta": 0.0017229574889039423,
+          "reference": 0.7753377111552537
+        },
+        "marginal_gain": 0.0017229574889039423,
+        "metrics": {
+          "brier": 0.06638657537233261,
+          "log_loss": 0.23994401498212964,
+          "pr_auc": 0.2706076510483718,
+          "roc_auc": 0.7770606686441577
+        },
+        "served_by_rule": false,
+        "step": "credit_card",
+        "vs_application": {
+          "candidate": 0.7770606686441577,
+          "ci_high": 0.02428490767801488,
+          "ci_low": 0.014949388153294926,
+          "delta": 0.019712697989606065,
+          "reference": 0.7573479706545516
+        }
+      }
+    ],
+    "contract_version": "1.1",
+    "leave_one_group_out": [
+      {
+        "full_minus_without": {
+          "candidate": 0.7770606686441577,
+          "ci_high": 0.004695481358762085,
+          "ci_low": -0.0003517187529031919,
+          "delta": 0.0021103802769234514,
+          "reference": 0.7749502883672342
+        },
+        "metrics_without": {
+          "brier": 0.06668097366112338,
+          "log_loss": 0.24096570353097077,
+          "pr_auc": 0.26392085455109726,
+          "roc_auc": 0.7749502883672342
+        },
+        "removed_group": "bureau"
+      },
+      {
+        "full_minus_without": {
+          "candidate": 0.7770606686441577,
+          "ci_high": 0.0011492503873128611,
+          "ci_low": -0.003408130093964341,
+          "delta": -0.0010926169214265924,
+          "reference": 0.7781532855655843
+        },
+        "metrics_without": {
+          "brier": 0.06635877859643086,
+          "log_loss": 0.23969280304103024,
+          "pr_auc": 0.2709551655549622,
+          "roc_auc": 0.7781532855655843
+        },
+        "removed_group": "bureau_balance"
+      },
+      {
+        "full_minus_without": {
+          "candidate": 0.7770606686441577,
+          "ci_high": 0.006851090462999734,
+          "ci_low": 0.0011375549184028623,
+          "delta": 0.003961252989403752,
+          "reference": 0.7730994156547539
+        },
+        "metrics_without": {
+          "brier": 0.0667999945587364,
+          "log_loss": 0.24147531132405406,
+          "pr_auc": 0.2615648646083482,
+          "roc_auc": 0.7730994156547539
+        },
+        "removed_group": "previous"
+      },
+      {
+        "full_minus_without": {
+          "candidate": 0.7770606686441577,
+          "ci_high": 0.005934530492913922,
+          "ci_low": -2.7794916776818393e-05,
+          "delta": 0.002933954783258308,
+          "reference": 0.7741267138608994
+        },
+        "metrics_without": {
+          "brier": 0.06662768950654155,
+          "log_loss": 0.24095613720443207,
+          "pr_auc": 0.2671740946582535,
+          "roc_auc": 0.7741267138608994
+        },
+        "removed_group": "installments"
+      },
+      {
+        "full_minus_without": {
+          "candidate": 0.7770606686441577,
+          "ci_high": 0.002194111753322747,
+          "ci_low": -0.002136860263649712,
+          "delta": -3.9365108358446754e-05,
+          "reference": 0.7771000337525161
+        },
+        "metrics_without": {
+          "brier": 0.06647673839187329,
+          "log_loss": 0.24010605077349628,
+          "pr_auc": 0.2686010652349281,
+          "roc_auc": 0.7771000337525161
+        },
+        "removed_group": "pos_cash"
+      },
+      {
+        "full_minus_without": {
+          "candidate": 0.7770606686441577,
+          "ci_high": 0.0042556564520738775,
+          "ci_low": -0.000784228571523457,
+          "delta": 0.0017229574889039423,
+          "reference": 0.7753377111552537
+        },
+        "metrics_without": {
+          "brier": 0.06649296565579799,
+          "log_loss": 0.24047515358919166,
+          "pr_auc": 0.2694494652706093,
+          "roc_auc": 0.7753377111552537
+        },
+        "removed_group": "credit_card"
+      }
+    ],
+    "partition_hash": "b26bba642ca01b6240cd5f38f21cd0e546b5f975f3ce99cf847eb8f3f35a9101",
+    "served_groups": [
+      "application",
+      "bureau",
+      "previous",
+      "installments"
+    ]
+  },
+  "kind": "metrics",
+  "path": "experiments/e2/summary.json",
+  "source_run_ids": "4e467506bab74355b13bca284dacbb87"
+}

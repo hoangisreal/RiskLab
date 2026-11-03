@@ -16,7 +16,7 @@ from typing import Any
 
 CHUNK_SIZE = 1024 * 1024
 JSON_FILE_MODE = 0o644
-LIBRARIES = ("duckdb", "pyarrow", "numpy")
+LIBRARIES = ("duckdb", "pyarrow", "numpy", "pandas", "scikit-learn", "lightgbm", "mlflow")
 
 
 def sha256_file(path: Path | str, chunk_size: int = CHUNK_SIZE) -> str:

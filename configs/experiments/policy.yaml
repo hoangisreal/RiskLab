@@ -1,0 +1,10 @@
+# Descriptive Selection comparisons, declared before contract-1.1 experiments.
+# Neither comparison automatically changes the default feature policy.
+experiment_name: risklab-policy-analysis
+seed: 20261101
+bootstrap_resamples: 1000
+bootstrap_seed: 20261101
+ci_level: 0.95
+gender_column: CODE_GENDER
+age_columns: [DAYS_BIRTH, app_employment_age_ratio]
+default_policy: exclude_gender_keep_age

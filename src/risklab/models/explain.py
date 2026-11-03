@@ -15,6 +15,68 @@ import pandas as pd
 from sklearn.pipeline import Pipeline
 
 
+def underlying_pipeline(model: Any) -> Pipeline:
+    """Unwrap frozen calibration wrappers without fitting or changing the estimator."""
+    seen: set[int] = set()
+    while not isinstance(model, Pipeline):
+        if id(model) in seen:
+            raise ValueError("cyclic estimator wrapper")
+        seen.add(id(model))
+        next_model = getattr(model, "estimator", None)
+        if next_model is None:
+            raise ValueError("model does not expose an explainable fitted pipeline")
+        model = next_model
+    return model
+
+
+def unknown_category_warnings(model: Any, frame: pd.DataFrame) -> list[str]:
+    pipeline = underlying_pipeline(model)
+    prep = pipeline.named_steps["prep"]
+    messages = []
+    for _, transformer, columns in prep.transformers_:
+        categories = getattr(transformer, "categories_", None)
+        if categories is None:
+            continue
+        for name, known in zip(columns, categories, strict=True):
+            value = frame.iloc[0][name]
+            if pd.notna(value) and value not in known:
+                messages.append(
+                    f"categorical field {name!r} is unseen or infrequent in Train; "
+                    "unknown handling applied"
+                )
+    return messages
+
+
+def _original_names(prep: Any) -> list[str]:
+    names: list[str] = []
+    for _, transformer, columns in prep.transformers_:
+        if transformer == "drop" or not len(columns):
+            continue
+        if isinstance(transformer, str):
+            names.extend(columns)
+        elif hasattr(transformer, "categories_"):
+            infrequent = getattr(transformer, "infrequent_categories_", [None] * len(columns))
+            dropped = getattr(transformer, "drop_idx_", None)
+            for index, (column, categories) in enumerate(
+                zip(columns, transformer.categories_, strict=True)
+            ):
+                count = len(categories)
+                if infrequent[index] is not None:
+                    count -= len(infrequent[index]) - 1
+                if dropped is not None and dropped[index] is not None:
+                    count -= 1
+                names.extend([column] * count)
+        else:
+            for transformed in transformer.get_feature_names_out(columns):
+                name = str(transformed)
+                if name.startswith("missingindicator_"):
+                    name = name.removeprefix("missingindicator_")
+                if name not in columns:
+                    raise ValueError("cannot map transformed contribution to its original feature")
+                names.append(name)
+    return names
+
+
 def explain_prediction(
     pipeline: Pipeline, X_row: pd.DataFrame, *, top_k: int = 5
 ) -> dict[str, Any]:
@@ -41,15 +103,11 @@ def explain_prediction(
             if not hasattr(Xt, "to_numpy")
             else np.asarray(Xt.to_numpy(), dtype=float).ravel()
         )
-        names = list(prep.get_feature_names_out())
+        names = _original_names(prep)
         raw = coef * vals
-        # Sum one-hot / indicator columns back to the source feature when possible.
         grouped: dict[str, float] = {}
         for name, value in zip(names, raw, strict=True):
-            base_name = str(name).split("__", 1)[-1]
-            # Strip one-hot suffix after the column name's last known separator is
-            # unreliable; keep the transformed name (documented limitation).
-            grouped[base_name] = grouped.get(base_name, 0.0) + float(value)
+            grouped[name] = grouped.get(name, 0.0) + float(value)
         pairs = sorted(grouped.items(), key=lambda kv: -abs(kv[1]))
         base = float(np.asarray(model.intercept_).ravel()[0])
     top = [{"feature": str(n), "contribution": float(v)} for n, v in pairs[:top_k]]
@@ -62,7 +120,13 @@ def explain_prediction(
                 if pd.isna(v)
                 else (float(v) if isinstance(v, (int, float, np.floating)) else str(v))
             )
-    return {"space": "log_odds_uncalibrated", "base_value": base, "top_contributions": top}
+    total = float(sum(float(value) for _, value in pairs))
+    return {
+        "space": "log_odds_uncalibrated",
+        "base_value": base,
+        "raw_log_odds": base + total,
+        "top_contributions": top,
+    }
 
 
 __all__ = ["explain_prediction"]

@@ -1,0 +1,61 @@
+{
+  "expected": {
+    "inputs": {
+      "POS_CASH_balance.csv": "0e13bc573ffa8fc29b3f00d975e557143193a405d675b0e4694b06fbdffcb0cd",
+      "application_test.csv": "a36161331d839150a67b6216d4de066f543a3b01a34061507d40e76612e0dec8",
+      "application_train.csv": "52e96b895b1112e1c853f670e58372719c8441c5ed1c57ac2f7fad559d784f5f",
+      "bureau.csv": "9d799143423f280720cf51c1bfbbab2a0422da8ff2763335bb30bf43155494f7",
+      "bureau_balance.csv": "33e09f06174c26f0be6b8b7398886c69e7bf0abbb29b4122f7841ffe545729a9",
+      "credit_card_balance.csv": "a9cdc48900d55131c90f3128b991859aeb94ca1326fb5f4d1624b9fd03782247",
+      "installments_payments.csv": "428c2e2496e4d6d697ee8270e98497e5213c41be16d882eed1bc95b133726797",
+      "previous_application.csv": "5046cd657ee04df2eaa6dc8308ae86be6b3b1763674a3f63574886a2f2896505"
+    },
+    "step": "ingest",
+    "summary": {
+      "tables": {
+        "application_test": {
+          "columns": 121,
+          "csv_rows": 48744,
+          "parquet_rows": 48744
+        },
+        "application_train": {
+          "columns": 122,
+          "csv_rows": 307511,
+          "parquet_rows": 307511
+        },
+        "bureau": {
+          "columns": 17,
+          "csv_rows": 1716428,
+          "parquet_rows": 1716428
+        },
+        "bureau_balance": {
+          "columns": 3,
+          "csv_rows": 27299925,
+          "parquet_rows": 27299925
+        },
+        "credit_card_balance": {
+          "columns": 23,
+          "csv_rows": 3840312,
+          "parquet_rows": 3840312
+        },
+        "installments_payments": {
+          "columns": 8,
+          "csv_rows": 13605401,
+          "parquet_rows": 13605401
+        },
+        "pos_cash_balance": {
+          "columns": 8,
+          "csv_rows": 10001358,
+          "parquet_rows": 10001358
+        },
+        "previous_application": {
+          "columns": 37,
+          "csv_rows": 1670214,
+          "parquet_rows": 1670214
+        }
+      }
+    }
+  },
+  "kind": "provenance",
+  "path": "manifests/ingest.json"
+}

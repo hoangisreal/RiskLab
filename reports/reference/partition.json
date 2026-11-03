@@ -1,0 +1,18 @@
+{
+  "expected": {
+    "inputs": {
+      "application_train.csv": "52e96b895b1112e1c853f670e58372719c8441c5ed1c57ac2f7fad559d784f5f"
+    },
+    "outputs": {
+      "calibration_ids_sha256": "980081cb0111000dbacb213b70f85918db8bbc38f723f1dd8e9bcc66e36a495f",
+      "monitoring_ids_sha256": "d2bb6e6c73b021801ed222eb54d29d9599b3ca7ee0392da25c0bd2fe330dfb94",
+      "partition_hash": "b26bba642ca01b6240cd5f38f21cd0e546b5f975f3ce99cf847eb8f3f35a9101",
+      "selection_ids_sha256": "87b1544dd9f55dbdab5228e1260d17915fe71e169fccd0f28ae308b830efd6d0",
+      "test_ids_sha256": "0ac8ccbd2443454bcf5b9bb1a402982882ed4e013fae8ba1c4b692e8e0b1e073",
+      "train_ids_sha256": "594459d47242d00853cbfc38dd29af59804c65b259c100bb50a7dcfc6abc5723"
+    },
+    "step": "partition"
+  },
+  "kind": "provenance",
+  "path": "manifests/partition.json"
+}

@@ -77,7 +77,16 @@ def test_build_manifest_fields(tmp_path: Path) -> None:
     assert m["config_hash"] == config_hash({"k": 1})
     assert m["git"] == {"commit": None, "dirty": None}
     assert list(m["inputs"]) == ["a", "b"]
-    assert set(m["versions"]) == {"python", "duckdb", "pyarrow", "numpy"}
+    assert set(m["versions"]) == {
+        "python",
+        "duckdb",
+        "pyarrow",
+        "numpy",
+        "pandas",
+        "scikit-learn",
+        "lightgbm",
+        "mlflow",
+    }
     assert all(v for v in m["versions"].values())
     assert m["summary"] == {"rows": 5}
 

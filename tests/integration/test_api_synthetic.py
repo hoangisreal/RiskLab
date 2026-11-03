@@ -35,7 +35,7 @@ def client(app_env, tmp_path_factory):  # type: ignore[no-untyped-def]
     with open(path, "wb") as fh:
         pickle.dump(pipe, fh)
     store = ModelStore()
-    store.load_local(path, version="1", threshold=0.1, contract_version="1.0", feature_groups=[])
+    store.load_local(path, version="1", threshold=0.1, contract_version="1.1", feature_groups=[])
     from pathlib import Path
 
     app = create_app(store=store, root=Path(cfg_dir).parent, config_dir=cfg_dir)
@@ -46,8 +46,9 @@ def test_health_predict_and_contract(client) -> None:  # type: ignore[no-untyped
     http, X = client
     assert http.get("/health").json()["ready"] is True
     row = X.iloc[0].where(lambda s: s.notna(), None).to_dict()
+    row.pop("DAYS_EMPLOYED_IS_SENTINEL", None)
     resp = http.post(
-        "/predict", json={"contract_version": "1.0", "application": row, "history": {}}
+        "/predict", json={"contract_version": "1.1", "application": row, "history": {}}
     )
     assert resp.status_code == 200, resp.text
     body = resp.json()
@@ -80,14 +81,15 @@ def test_not_provided_required_source_is_422(app_env, tmp_path) -> None:  # type
         pk.dump(pipe, fh)
     store = ModelStore()
     store.load_local(
-        path, version="1", threshold=0.1, contract_version="1.0", feature_groups=["bureau"]
+        path, version="1", threshold=0.1, contract_version="1.1", feature_groups=["bureau"]
     )
     http = TestClient(create_app(store=store, root=Path(cfg_dir).parent, config_dir=cfg_dir))
     row = X.iloc[0].where(lambda s: s.notna(), None).to_dict()
+    row.pop("DAYS_EMPLOYED_IS_SENTINEL", None)
     resp = http.post(
         "/predict",
         json={
-            "contract_version": "1.0",
+            "contract_version": "1.1",
             "application": row,
             "history": {"bureau": {"status": "not_provided"}},
         },
@@ -96,12 +98,78 @@ def test_not_provided_required_source_is_422(app_env, tmp_path) -> None:  # type
     empty = http.post(
         "/predict",
         json={
-            "contract_version": "1.0",
+            "contract_version": "1.1",
             "application": row,
             "history": {"bureau": {"status": "provided", "records": []}},
         },
     )
-    assert empty.status_code in (
-        200,
-        422,
-    )  # 200 = no-history result; 422 only if frame assembly rejects
+    assert empty.status_code == 200, empty.text
+
+
+@pytest.mark.parametrize(
+    "column,value",
+    [
+        ("AMT_CREDIT", -1),
+        ("AMT_INCOME_TOTAL", 0),
+        ("AMT_CREDIT", "100"),
+        ("AMT_CREDIT", True),
+        ("DAYS_BIRTH", 1),
+        ("FLAG_MOBIL", 0.5),
+        ("REGION_RATING_CLIENT", -1),
+        ("EXT_SOURCE_3", 1.1),
+    ],
+)
+def test_public_numeric_types_and_ranges(client, column, value):
+    http, _ = client
+    application = {"AMT_CREDIT": 100000.0, "AMT_INCOME_TOTAL": 100000.0, column: value}
+    response = http.post("/predict", json={"application": application})
+    assert response.status_code == 422, response.text
+    assert all("input" not in detail for detail in response.json()["detail"])
+
+
+def test_schema_forbids_identifiers_and_computed_features(client):
+    http, _ = client
+    for field in ("SK_ID_CURR", "TARGET", "CODE_GENDER", "DAYS_EMPLOYED_IS_SENTINEL"):
+        response = http.post(
+            "/predict",
+            json={"application": {"AMT_CREDIT": 100000, "AMT_INCOME_TOTAL": 100000, field: 1}},
+        )
+        assert response.status_code == 422
+    schema = http.get("/openapi.json").json()
+    fields = schema["components"]["schemas"]["Application"]["properties"]
+    assert fields["AMT_CREDIT"]["type"] == "number"
+    assert "TARGET" not in fields
+    assert "SK_ID_CURR" not in fields
+    assert "NAME_CONTRACT_TYPE" in fields
+
+
+def test_declared_and_chunked_body_limits_and_metadata_only_logs(client, monkeypatch, caplog):
+    import logging
+
+    import risklab.api.main as api_main
+    from risklab.api.config import load_api_config
+    from tests.conftest import CONFIG_DIR, REPO_ROOT
+
+    http, _ = client
+    cfg = load_api_config(CONFIG_DIR).model_copy(update={"max_body_bytes": 512})
+    monkeypatch.setattr(api_main, "load_api_config", lambda _: cfg)
+    limited = TestClient(
+        create_app(store=http.app.state.store, root=REPO_ROOT, config_dir=CONFIG_DIR)
+    )
+    assert limited.post("/predict", content=b" " * 513).status_code == 413
+    assert limited.post("/predict", content=iter([b" " * 256, b" " * 257])).status_code == 413
+    with caplog.at_level(logging.INFO, logger="risklab.api"):
+        response = http.post(
+            "/predict",
+            json={
+                "application": {
+                    "AMT_CREDIT": 100000,
+                    "AMT_INCOME_TOTAL": 100000,
+                    "NAME_INCOME_TYPE": "payload-must-not-be-logged",
+                }
+            },
+        )
+    assert response.status_code == 200, response.text
+    assert "payload-must-not-be-logged" not in caplog.text
+    assert "model_version" in caplog.text
+    assert response.headers["x-request-id"] == response.json()["request_id"]

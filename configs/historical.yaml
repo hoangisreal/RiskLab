@@ -1,0 +1,32 @@
+# Contract 1.1: applicant-local cleaning only, before shared feature SQL.
+# A missing realized-event date is not evidence that an event already happened.
+xna_value: XNA
+sentinel_value: 365243
+installment_amount_tolerance: 0.000001
+tables:
+  bureau:
+    non_future_columns: [DAYS_CREDIT, DAYS_ENDDATE_FACT]
+    required_event_columns: [DAYS_CREDIT]
+    sentinel_columns: []
+  bureau_balance:
+    non_future_columns: [MONTHS_BALANCE]
+    required_event_columns: [MONTHS_BALANCE]
+    sentinel_columns: []
+  previous_application:
+    non_future_columns: [DAYS_DECISION]
+    required_event_columns: [DAYS_DECISION]
+    sentinel_columns: [DAYS_FIRST_DRAWING, DAYS_FIRST_DUE, DAYS_LAST_DUE_1ST_VERSION, DAYS_LAST_DUE, DAYS_TERMINATION]
+  installments_payments:
+    non_future_columns: [DAYS_ENTRY_PAYMENT, DAYS_INSTALMENT]
+    required_event_columns: [DAYS_ENTRY_PAYMENT, DAYS_INSTALMENT]
+    sentinel_columns: []
+  pos_cash_balance:
+    non_future_columns: [MONTHS_BALANCE]
+    required_event_columns: [MONTHS_BALANCE]
+    sentinel_columns: []
+  credit_card_balance:
+    non_future_columns: [MONTHS_BALANCE]
+    required_event_columns: [MONTHS_BALANCE]
+    sentinel_columns: []
+validation_sql: sql/validation/history.sql
+error_checks: [bureau_duplicate_ids, previous_duplicate_ids, bureau_balance_duplicate_months, pos_duplicate_months, card_duplicate_months, installment_exact_duplicates, installment_due_date_conflicts, loan_owner_conflicts]

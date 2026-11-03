@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import pandas as pd
+import pyarrow as pa
 from pydantic import Field, field_validator
 
 from risklab.config import (
@@ -143,6 +144,23 @@ def feature_columns(
     return spec.numeric, spec.categorical
 
 
+def frame_from_table(table: pa.Table, columns: FeatureColumns, *, id_column: str) -> pd.DataFrame:
+    """One canonical Arrow-to-model conversion for batch, serving and final evaluation."""
+    ids = pd.Index(table[id_column].to_numpy(), name=id_column)
+    data: dict[str, pd.Series] = {}
+    for name in columns.numeric:
+        data[name] = pd.Series(
+            table[name].to_numpy(zero_copy_only=False), index=ids, dtype="float64"
+        )
+    for name in columns.categorical:
+        data[name] = pd.Series(
+            [float("nan") if value is None else value for value in table[name].to_pylist()],
+            index=ids,
+            dtype=object,
+        )
+    return pd.DataFrame(data, index=ids, columns=columns.all)
+
+
 def load_application_frame(
     role: PartitionRole | str,
     purpose: Purpose | str,
@@ -173,18 +191,8 @@ def load_application_frame(
     )
     table = clean_application(table, cleaning)
 
-    ids = pd.Index(table[partition_cfg.id_column].to_numpy(), name=partition_cfg.id_column)
-    data: dict[str, pd.Series] = {}
-    for name in cols.numeric:
-        data[name] = pd.Series(
-            table[name].to_numpy(zero_copy_only=False), index=ids, dtype="float64"
-        )
-    for name in cols.categorical:
-        values = table[name].to_pylist()
-        data[name] = pd.Series(
-            [float("nan") if v is None else v for v in values], index=ids, dtype=object
-        )
-    X = pd.DataFrame(data, index=ids, columns=cols.all)
+    X = frame_from_table(table, cols, id_column=partition_cfg.id_column)
+    ids = X.index
     y = pd.Series(
         table[partition_cfg.stratify_column].to_numpy(zero_copy_only=False),
         index=ids,

@@ -1,0 +1,34 @@
+{
+  "expected": {
+    "contract_version": "1.1",
+    "decision": {
+      "ci_lower_bound_of_gain": 0.009108726605527636,
+      "gain": 0.01315370415835504,
+      "min_gain": 0.005,
+      "preferred": "lightgbm",
+      "reason": "lightgbm gains 0.01315 in roc_auc (>= min_gain 0.005) and the 95% interval excludes 0"
+    },
+    "partition_hash": "b26bba642ca01b6240cd5f38f21cd0e546b5f975f3ce99cf847eb8f3f35a9101",
+    "selection_metrics": {
+      "lightgbm": {
+        "brier": 0.06677588762692485,
+        "log_loss": 0.2415569243550074,
+        "pr_auc": 0.26367878865722566,
+        "roc_auc": 0.7725206402436999
+      },
+      "logistic_regression": {
+        "brier": 0.06743913031030041,
+        "log_loss": 0.24514452211679585,
+        "pr_auc": 0.2521958722624595,
+        "roc_auc": 0.7593669360853449
+      }
+    }
+  },
+  "kind": "metrics",
+  "path": "experiments/e1_served/summary.json",
+  "source_run_ids": {
+    "comparison": "2b1c9ef2f9f94984bb0900c54ec96887",
+    "lightgbm": "cbcfa9885a7e4caa982885b8adbb5cc4",
+    "logistic_regression": "7e8c455c6d814eedad18a905fca67afe"
+  }
+}

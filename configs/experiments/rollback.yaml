@@ -1,0 +1,10 @@
+# Diagnostic bad deployment only. It is never a scientific model candidate.
+experiment_name: risklab-rollback-demo
+seed: 20261101
+corruption: permute_train_labels
+calibration_method: none
+threshold_policy: copy_verified_champion
+monitoring_scenario: control
+data_drift_scenario: label_flip
+batch_seed: 20261101
+force_reason: "Intentional corrupted-label deployment for the audited rollback demo."

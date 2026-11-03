@@ -34,13 +34,44 @@ def main(argv: list[str]) -> int:
         print(__doc__)
         return 2
     directory = Path(argv[1])
-    summary = json.loads((directory / "summary.json").read_text(encoding="utf-8"))
-    preds = pd.read_parquet(directory / "selection_predictions.parquet")
-    if len(preds) != summary["selection_rows"]:
-        print(f"FAIL: {len(preds)} prediction rows, summary reports {summary['selection_rows']}")
+    final_result = directory / "result.json"
+    if final_result.is_file():
+        summary = json.loads(final_result.read_text(encoding="utf-8"))
+        preds = pd.read_parquet(directory / "predictions.parquet")
+        reported_metrics = {"model": summary["metrics"]}
+        rows = summary["rows"]
+        print(
+            f"Stored evaluation: run={summary.get('run_id')}, "
+            f"model_run={summary['model_run_id']}, lock={summary['lock_id']}"
+        )
+    else:
+        summary = json.loads((directory / "summary.json").read_text(encoding="utf-8"))
+        preds = pd.read_parquet(directory / "selection_predictions.parquet")
+        if "selection_metrics" in summary:
+            reported_metrics = summary["selection_metrics"]
+        elif "ablation" in summary:
+            reported_metrics = {row["step"]: row["metrics"] for row in summary["ablation"]}
+            reported_metrics.update(
+                {
+                    f"without_{row['removed_group']}": row["metrics_without"]
+                    for row in summary.get("leave_one_group_out", [])
+                }
+            )
+        elif "selection" in summary:
+            reported_metrics = summary["selection"]["metrics"]
+        else:
+            raise ValueError("summary contains no supported Selection metrics")
+        rows = summary.get("selection_rows", len(preds))
+        print(f"Selection runs: {summary.get('run_ids') or summary.get('run_id')}")
+        if not (summary.get("run_ids") or summary.get("run_id")):
+            raise ValueError("metrics are not reportable without a tracked run")
+    if preds["SK_ID_CURR"].duplicated().any() or len(preds) == 0:
+        raise ValueError("prediction keys must be unique and nonempty")
+    if len(preds) != rows:
+        print(f"FAIL: {len(preds)} prediction rows, summary reports {rows}")
         return 1
     failures = 0
-    for model, reported in summary["selection_metrics"].items():
+    for model, reported in reported_metrics.items():
         again = recompute(preds["TARGET"], preds[model])
         for name, value in again.items():
             diff = abs(value - reported[name])

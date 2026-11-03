@@ -145,10 +145,10 @@ def test_tracking_requires_a_server_uri(
 
 
 def test_tracked_run_logs_provenance_metrics_and_artifacts(
-    e1_env: AppEnv, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    e1_env: AppEnv, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mlflow_server
 ) -> None:
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("MLFLOW_TRACKING_URI", f"sqlite:///{tmp_path / 'mlflow.db'}")
+    monkeypatch.setenv("MLFLOW_TRACKING_URI", mlflow_server)
     summary = _run(e1_env, tmp_path / "o", tracking=True)
     ids = summary["run_ids"]
     assert set(ids) == {LR_NAME, LGBM_NAME, "comparison"}

@@ -1,0 +1,217 @@
+{
+  "expected": {
+    "contract_version": "1.1",
+    "cost_config": {
+      "cost_fn": 10.0,
+      "cost_fp": 1.0,
+      "loan": {
+        "lgd": 0.5,
+        "margin": 0.05,
+        "sensitivity_lgd": [
+          0.2,
+          0.5,
+          0.8
+        ],
+        "sensitivity_margin": [
+          0.025,
+          0.05,
+          0.1
+        ]
+      },
+      "policy": "per_loan",
+      "sensitivity_ratios": [
+        2.0,
+        5.0,
+        10.0,
+        20.0
+      ],
+      "threshold_grid_size": 200
+    },
+    "loan_sensitivity": [
+      {
+        "cost": {
+          "approval_rate": 0.7991610028942148,
+          "expected_cost_per_applicant": 6341.8944461155725,
+          "fnr": 0.45165189363416597,
+          "fpr": 0.17032792104425343,
+          "precision": 0.22036917098445596,
+          "recall": 0.548348106365834,
+          "threshold": 0.11557788944723618,
+          "total_cost": 195019596.11249998
+        },
+        "lgd": 0.2,
+        "margin": 0.025,
+        "threshold": 0.11557788944723618
+      },
+      {
+        "cost": {
+          "approval_rate": 0.9161002894214823,
+          "expected_cost_per_applicant": 7768.205433969627,
+          "fnr": 0.6764705882352942,
+          "fpr": 0.06286037709151367,
+          "precision": 0.3112403100775194,
+          "recall": 0.3235294117647059,
+          "threshold": 0.20100502512562815,
+          "total_cost": 238880085.3
+        },
+        "lgd": 0.2,
+        "margin": 0.05,
+        "threshold": 0.20100502512562815
+      },
+      {
+        "cost": {
+          "approval_rate": 0.9793502650320315,
+          "expected_cost_per_applicant": 8545.885392344964,
+          "fnr": 0.8847703464947623,
+          "fpr": 0.012345679012345678,
+          "precision": 0.4503937007874016,
+          "recall": 0.11522965350523771,
+          "threshold": 0.35678391959798994,
+          "total_cost": 262794521.70000002
+        },
+        "lgd": 0.2,
+        "margin": 0.1,
+        "threshold": 0.35678391959798994
+      },
+      {
+        "cost": {
+          "approval_rate": 0.47058632239601966,
+          "expected_cost_per_applicant": 9921.547176108093,
+          "fnr": 0.14182111200644643,
+          "fpr": 0.5005483037956773,
+          "precision": 0.13083538083538085,
+          "recall": 0.8581788879935536,
+          "threshold": 0.04522613065326633,
+          "total_cost": 305097497.2125
+        },
+        "lgd": 0.5,
+        "margin": 0.025,
+        "threshold": 0.04522613065326633
+      },
+      {
+        "cost": {
+          "approval_rate": 0.6922376508081038,
+          "expected_cost_per_applicant": 14533.39983740366,
+          "fnr": 0.3178887993553586,
+          "fpr": 0.2748947610456684,
+          "precision": 0.17888841927303467,
+          "recall": 0.6821112006446414,
+          "threshold": 0.08040201005025126,
+          "total_cost": 446916578.4
+        },
+        "lgd": 0.5,
+        "margin": 0.05,
+        "threshold": 0.08040201005025126
+      },
+      {
+        "cost": {
+          "approval_rate": 0.8695652173913043,
+          "expected_cost_per_applicant": 18519.0676465806,
+          "fnr": 0.5785656728444802,
+          "fpr": 0.10488520994729209,
+          "precision": 0.2607828471702817,
+          "recall": 0.42143432715551976,
+          "threshold": 0.15577889447236182,
+          "total_cost": 569479849.2
+        },
+        "lgd": 0.5,
+        "margin": 0.1,
+        "threshold": 0.15577889447236182
+      },
+      {
+        "cost": {
+          "approval_rate": 0.42063672726090207,
+          "expected_cost_per_applicant": 11851.41395157881,
+          "fnr": 0.11442385173247381,
+          "fpr": 0.5524779794120769,
+          "precision": 0.12337224966322406,
+          "recall": 0.8855761482675262,
+          "threshold": 0.04020100502512563,
+          "total_cost": 364442830.425
+        },
+        "lgd": 0.8,
+        "margin": 0.025,
+        "threshold": 0.04020100502512563
+      },
+      {
+        "cost": {
+          "approval_rate": 0.5158206237195538,
+          "expected_cost_per_applicant": 18289.762171961887,
+          "fnr": 0.17002417405318293,
+          "fpr": 0.45381867062860376,
+          "precision": 0.1383571764389818,
+          "recall": 0.8299758259468171,
+          "threshold": 0.05025125628140704,
+          "total_cost": 562428476.55
+        },
+        "lgd": 0.8,
+        "margin": 0.05,
+        "threshold": 0.05025125628140704
+      },
+      {
+        "cost": {
+          "approval_rate": 0.7991610028942148,
+          "expected_cost_per_applicant": 25367.57778446229,
+          "fnr": 0.45165189363416597,
+          "fpr": 0.17032792104425343,
+          "precision": 0.22036917098445596,
+          "recall": 0.548348106365834,
+          "threshold": 0.11557788944723618,
+          "total_cost": 780078384.4499999
+        },
+        "lgd": 0.8,
+        "margin": 0.1,
+        "threshold": 0.11557788944723618
+      }
+    ],
+    "partition_hash": "b26bba642ca01b6240cd5f38f21cd0e546b5f975f3ce99cf847eb8f3f35a9101",
+    "sensitivity": [
+      {
+        "approval_rate": 0.9776267438457286,
+        "bayes_threshold": 0.3333333333333333,
+        "cost_fn_over_fp": 2.0,
+        "expected_cost_per_applicant": 0.15414132873727684,
+        "threshold": 0.34673366834170855
+      },
+      {
+        "approval_rate": 0.8753861663035348,
+        "bayes_threshold": 0.16666666666666666,
+        "cost_fn_over_fp": 5.0,
+        "expected_cost_per_applicant": 0.3297453741341745,
+        "threshold": 0.16080402010050251
+      },
+      {
+        "approval_rate": 0.7321062729667328,
+        "bayes_threshold": 0.09090909090909091,
+        "cost_fn_over_fp": 10.0,
+        "expected_cost_per_applicant": 0.5069753829143767,
+        "threshold": 0.09090909090909091
+      },
+      {
+        "approval_rate": 0.47058632239601966,
+        "bayes_threshold": 0.047619047619047616,
+        "cost_fn_over_fp": 20.0,
+        "expected_cost_per_applicant": 0.6890832818444929,
+        "threshold": 0.04522613065326633
+      }
+    ],
+    "threshold_choice": {
+      "bayes_threshold": 0.09090909090909091,
+      "best": {
+        "approval_rate": 0.6922376508081038,
+        "expected_cost_per_applicant": 14533.39983740366,
+        "fnr": 0.3178887993553586,
+        "fpr": 0.2748947610456684,
+        "precision": 0.17888841927303467,
+        "recall": 0.6821112006446414,
+        "threshold": 0.08040201005025126,
+        "total_cost": 446916578.4
+      },
+      "gap_to_bayes": -0.010507080858839654,
+      "threshold": 0.08040201005025126
+    }
+  },
+  "kind": "metrics",
+  "path": "experiments/e4/summary.json",
+  "source_run_ids": "92aa4caf17fd434f95ad13dd80de5198"
+}

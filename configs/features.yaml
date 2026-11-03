@@ -3,7 +3,7 @@
 # this file governs the engineered groups produced by sql/features/*.sql.
 # Served source set is decided by E2 (configs/experiments/e2.yaml); contract_version bumps
 # whenever the served set changes.
-contract_version: "1.0"
+contract_version: "1.1"
 groups:
   application:
     source_sql: sql/features/application.sql
