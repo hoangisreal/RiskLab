@@ -1,0 +1,21 @@
+services:
+  mlflow:
+    build: {context: ., target: train}
+    command: ["mlflow", "server", "--host", "0.0.0.0", "--port", "5000", "--backend-store-uri", "sqlite:////mlflow/mlflow.db", "--artifacts-destination", "/mlflow/artifacts", "--allowed-hosts", "mlflow:5000,localhost:*,127.0.0.1:*"]
+    volumes: ["./mlflow-data:/mlflow"]
+    ports: ["127.0.0.1:5000:5000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+  api:
+    build: {context: ., target: api}
+    environment: {MLFLOW_TRACKING_URI: "http://mlflow:5000", RISKLAB_ADMIN_API_KEY: "${RISKLAB_ADMIN_API_KEY:-}"}
+    ports: ["127.0.0.1:8000:8000"]
+    depends_on: {mlflow: {condition: service_healthy}}
+  train:
+    profiles: ["jobs"]
+    build: {context: ., target: train}
+    volumes: ["./data:/app/data:ro", "./reports:/app/reports"]
+    environment: {MLFLOW_TRACKING_URI: "http://mlflow:5000"}

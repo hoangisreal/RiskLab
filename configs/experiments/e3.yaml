@@ -1,0 +1,10 @@
+# E3: raw vs calibrated probabilities (MASTER_PLAN Section 5).
+# Primary metric: log loss on Selection. Simplest method within the CI wins.
+experiment_name: risklab-e3-calibration
+seed: 20261101
+methods: [none, sigmoid, isotonic]
+primary_metric: log_loss
+bootstrap_resamples: 1000
+bootstrap_seed: 20261101
+ci_level: 0.95
+include_scale_pos_weight_diagnostic: true

@@ -1,0 +1,78 @@
+# Feature registry: single source for historical/application-ratio feature groups.
+# The application raw columns themselves are governed by configs/features_application.yaml;
+# this file governs the engineered groups produced by sql/features/*.sql.
+# Served source set is decided by E2 (configs/experiments/e2.yaml); contract_version bumps
+# whenever the served set changes.
+contract_version: "1.0"
+groups:
+  application:
+    source_sql: sql/features/application.sql
+    source_tables: [application]
+    features:
+      - {name: app_credit_income_ratio, dtype: float64, nullable: true}
+      - {name: app_annuity_income_ratio, dtype: float64, nullable: true}
+      - {name: app_credit_goods_ratio, dtype: float64, nullable: true}
+      - {name: app_employment_age_ratio, dtype: float64, nullable: true}
+      - {name: app_income_per_member, dtype: float64, nullable: true}
+  bureau:
+    source_sql: sql/features/bureau.sql
+    source_tables: [bureau]
+    features:
+      - {name: bureau_record_count, dtype: float64, nullable: false}
+      - {name: bureau_active_ratio, dtype: float64, nullable: true}
+      - {name: bureau_debt_sum, dtype: float64, nullable: true}
+      - {name: bureau_limit_sum, dtype: float64, nullable: true}
+      - {name: bureau_overdue_sum, dtype: float64, nullable: true}
+      - {name: bureau_debt_limit_ratio, dtype: float64, nullable: true}
+      - {name: bureau_max_overdue_days, dtype: float64, nullable: true}
+      - {name: bureau_mean_days_credit, dtype: float64, nullable: true}
+  bureau_balance:
+    source_sql: sql/features/bureau_balance.sql
+    source_tables: [bureau, bureau_balance]
+    features:
+      - {name: bb_record_count, dtype: float64, nullable: false}
+      - {name: bb_dpd_months, dtype: float64, nullable: true}
+      - {name: bb_dpd_ratio, dtype: float64, nullable: true}
+      - {name: bb_max_status, dtype: float64, nullable: true}
+      - {name: bb_months_span, dtype: float64, nullable: true}
+  previous:
+    source_sql: sql/features/previous.sql
+    source_tables: [previous_application]
+    features:
+      - {name: prev_record_count, dtype: float64, nullable: false}
+      - {name: prev_refusal_rate, dtype: float64, nullable: true}
+      - {name: prev_approved_amount_ratio, dtype: float64, nullable: true}
+      - {name: prev_mean_credit, dtype: float64, nullable: true}
+      - {name: prev_mean_days_since_decision, dtype: float64, nullable: true}
+      - {name: prev_cash_share, dtype: float64, nullable: true}
+      - {name: prev_approval_rate, dtype: float64, nullable: true}
+  installments:
+    source_sql: sql/features/installments.sql
+    source_tables: [installments_payments]
+    features:
+      - {name: inst_record_count, dtype: float64, nullable: false}
+      - {name: inst_late_ratio, dtype: float64, nullable: true}
+      - {name: inst_mean_days_late, dtype: float64, nullable: true}
+      - {name: inst_max_days_late, dtype: float64, nullable: true}
+      - {name: inst_underpaid_ratio, dtype: float64, nullable: true}
+      - {name: inst_payment_ratio_mean, dtype: float64, nullable: true}
+      - {name: inst_recent_late_ratio, dtype: float64, nullable: true}
+  pos_cash:
+    source_sql: sql/features/pos_cash.sql
+    source_tables: [pos_cash_balance]
+    features:
+      - {name: pos_record_count, dtype: float64, nullable: false}
+      - {name: pos_mean_dpd, dtype: float64, nullable: true}
+      - {name: pos_max_dpd, dtype: float64, nullable: true}
+      - {name: pos_dpd_def_ratio, dtype: float64, nullable: true}
+      - {name: pos_active_share, dtype: float64, nullable: true}
+  credit_card:
+    source_sql: sql/features/credit_card.sql
+    source_tables: [credit_card_balance]
+    features:
+      - {name: cc_record_count, dtype: float64, nullable: false}
+      - {name: cc_mean_utilization, dtype: float64, nullable: true}
+      - {name: cc_max_utilization, dtype: float64, nullable: true}
+      - {name: cc_mean_dpd, dtype: float64, nullable: true}
+      - {name: cc_max_dpd, dtype: float64, nullable: true}
+      - {name: cc_mean_balance, dtype: float64, nullable: true}

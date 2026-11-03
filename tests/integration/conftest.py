@@ -50,8 +50,24 @@ def app_env(
         cfg.raw_dir, raw_schema, {t: f for f, t in cfg.tables.items()}, n_applicants=3000, seed=5
     )
     cfg_dir = write_config_dir(root, cfg, raw_schema)
-    for name in ("cleaning.yaml", "features_application.yaml", "model_lr.yaml", "model_lgbm.yaml"):
+    for name in (
+        "cleaning.yaml",
+        "features_application.yaml",
+        "features.yaml",
+        "model_lr.yaml",
+        "model_lgbm.yaml",
+        "calibration.yaml",
+        "cost.yaml",
+    ):
         shutil.copy(CONFIG_DIR / name, cfg_dir / name)
+    exp_dir = cfg_dir / "experiments"
+    exp_dir.mkdir(exist_ok=True)
+    for name in ("e1.yaml", "e2.yaml", "e3.yaml", "e4.yaml", "diagnostics.yaml"):
+        shutil.copy(CONFIG_DIR / "experiments" / name, exp_dir / name)
+    # Feature SQL lives at <root>/sql/features; link the shipped files for the online/batch paths.
+    sql_link = root / "sql"
+    if not sql_link.exists():
+        sql_link.symlink_to(Path(__file__).resolve().parents[2] / "sql")
     (cfg_dir / "partition.yaml").write_text(
         yaml.safe_dump(
             {

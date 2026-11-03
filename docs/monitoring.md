@@ -1,0 +1,7 @@
+# Monitoring
+
+Batches are simulated from the Monitoring pool (seeded, registered by `batch_id` in the monitoring manifest; the API never accepts file paths) plus the unlabeled Kaggle `application_test` drift sample. Scenarios: control, covariate shift toward younger applicants, upstream bugs (income ×1000, 60% missing `EXT_SOURCE_3`, renamed category), prior/concept shift via label flips.
+
+Drift is measured against the model version's reference profile: per-feature PSI and KS effect size, score PSI (reference = Selection scores), and missing-rate change. P-values are not reported. Alert thresholds in `configs/monitoring.yaml` must be calibrated so at most 5% of control batches alert. Labeled batches also report ROC-AUC, PR-AUC, Brier, ECE, calibration-in-the-large, and expected cost at the served threshold. Subgroup gaps (gender, age bands, income type, education, region, contract type, bureau-history) are descriptive with bootstrap CIs; small groups are suppressed.
+
+Rollback scenarios: (a) a corrupted-data candidate is blocked by the promotion gate; (b) a force-promoted bad version is detected on a labeled batch and rolled back with `risklab registry rollback`; (c) drift degrading both versions shows rollback does not fix data drift. Load testing (Locust, application-only vs full-history payloads) should report p50/p95/p99, throughput, and error rate before claiming any latency target.

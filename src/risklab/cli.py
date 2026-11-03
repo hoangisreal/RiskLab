@@ -27,11 +27,19 @@ from risklab.data.validate import (
     ValidationRules,
     run_validate,
 )
+from risklab.data.validate_history import HistoryValidationError, validate_history
 from risklab.experiments.diagnostics import run_diagnostics
 from risklab.experiments.e1 import E1Error, run_e1
+from risklab.experiments.e234 import run_e2, run_e3, run_e4
+from risklab.features.build import FeatureBuildError, build_features
+from risklab.features.registry import load_registry
+from risklab.manifest import write_json_atomic
 from risklab.models.evaluate import EvaluationError
+from risklab.models.final_eval import FinalEvalError, run_final_eval
+from risklab.models.select import SelectionError, create_lock
 from risklab.synthetic import generate
 from risklab.tracking import TrackingError
+from risklab.verify import verify_reference
 
 app = typer.Typer(help="RiskLab: credit risk prediction and monitoring demo.", no_args_is_help=True)
 
@@ -257,3 +265,292 @@ def diagnostics(
         typer.echo(f"MLflow run: {report['run_id']}")
     if not report["passed"]:
         raise typer.Exit(code=1)
+
+
+@app.command("validate-history")
+def validate_history_cmd(ctx: typer.Context) -> None:
+    """Validate historical tables (FK coverage, temporal validity, duplicate keys)."""
+    try:
+        cfg_dir = _config_dir(ctx)
+        data_cfg = load_data_config(cfg_dir)
+        report = validate_history(data_cfg)
+    except (ConfigError, HistoryValidationError) as exc:
+        _fail(str(exc))
+    for name, value in report["counts"].items():
+        typer.echo(f"{name}: {value}")
+    typer.echo(f"Temporal validity: {'OK' if report['temporal_valid'] else 'VIOLATIONS'}")
+
+
+@app.command()
+def features(ctx: typer.Context) -> None:
+    """Build historical feature groups for all Train applicants (batch SQL)."""
+    try:
+        cfg_dir = _config_dir(ctx)
+        data_cfg = load_data_config(cfg_dir)
+        partition_cfg = load_partition_config(cfg_dir)
+        from risklab.data.clean import clean_application, load_cleaning_config
+        from risklab.data.loaders import PartitionRole, Purpose, load_partition
+
+        schema = load_raw_schema(cfg_dir, data_cfg=data_cfg)
+        cleaning = load_cleaning_config(cfg_dir, schema)
+        table = load_partition(
+            PartitionRole.train,
+            Purpose.fit,
+            data_cfg=data_cfg,
+            partition_cfg=partition_cfg,
+            config_dir=cfg_dir,
+        )
+        cleaned = clean_application(table, cleaning)
+        registry = load_registry(cfg_dir)
+        out = data_cfg.reports_dir.parent / "features"
+        build_features(
+            data_cfg=data_cfg,
+            root=project_root(cfg_dir),
+            applicant_ids=cleaned[partition_cfg.id_column].to_pylist(),
+            application_cleaned=cleaned,
+            registry=registry,
+            output_dir=out,
+            log=typer.echo,
+        )
+    except (ConfigError, LoaderError, PartitionError, FeatureBuildError) as exc:
+        _fail(str(exc))
+    typer.echo(f"Feature groups written to {out}")
+
+
+@app.command()
+def e2(ctx: typer.Context) -> None:
+    """Run E2 (feature-group ablation) on Train/Selection."""
+    try:
+        cfg_dir = _config_dir(ctx)
+        summary = run_e2(config_dir=cfg_dir, root=project_root(cfg_dir), log=typer.echo)
+        data_cfg = load_data_config(cfg_dir)
+        write_json_atomic(data_cfg.reports_dir / "experiments" / "e2" / "summary.json", summary)
+    except Exception as exc:
+        _fail(str(exc))
+    typer.echo(f"E2 served groups: {summary['served_groups']}")
+
+
+@app.command()
+def e3(ctx: typer.Context) -> None:
+    """Run E3 (calibration comparison) on Calibration/Selection."""
+    try:
+        cfg_dir = _config_dir(ctx)
+        import json as _json
+
+        e2_path = load_data_config(cfg_dir).reports_dir / "experiments" / "e2" / "summary.json"
+        groups = None
+        if e2_path.is_file():
+            served = _json.loads(e2_path.read_text(encoding="utf-8"))["served_groups"]
+            groups = [g for g in served if g != "application"]
+        summary = run_e3(
+            config_dir=cfg_dir, root=project_root(cfg_dir), groups=groups, log=typer.echo
+        )
+        data_cfg = load_data_config(cfg_dir)
+        write_json_atomic(data_cfg.reports_dir / "experiments" / "e3" / "summary.json", summary)
+    except Exception as exc:
+        _fail(str(exc))
+    typer.echo(f"E3 chosen calibration: {summary['selection']['chosen']}")
+
+
+@app.command()
+def e4(ctx: typer.Context) -> None:
+    """Run E4 (threshold and cost sensitivity) on Selection."""
+    try:
+        cfg_dir = _config_dir(ctx)
+        import json as _json
+
+        e2_path = load_data_config(cfg_dir).reports_dir / "experiments" / "e2" / "summary.json"
+        groups = None
+        if e2_path.is_file():
+            served = _json.loads(e2_path.read_text(encoding="utf-8"))["served_groups"]
+            groups = [g for g in served if g != "application"]
+        e3_path = load_data_config(cfg_dir).reports_dir / "experiments" / "e3" / "summary.json"
+        method = "sigmoid"
+        if e3_path.is_file():
+            method = _json.loads(e3_path.read_text(encoding="utf-8"))["selection"]["chosen"]
+        summary = run_e4(
+            config_dir=cfg_dir,
+            root=project_root(cfg_dir),
+            groups=groups,
+            calibration_method=method,
+            log=typer.echo,
+        )
+        data_cfg = load_data_config(cfg_dir)
+        write_json_atomic(data_cfg.reports_dir / "experiments" / "e4" / "summary.json", summary)
+    except Exception as exc:
+        _fail(str(exc))
+    typer.echo(f"E4 threshold: {summary['threshold_choice']['threshold']:.4f}")
+
+
+@app.command("lock-selection")
+def lock_selection(
+    ctx: typer.Context,
+    model_run_id: Annotated[str, typer.Option("--model-run-id")],
+    model_path: Annotated[Path, typer.Option("--model-path")],
+    calibration_method: Annotated[str, typer.Option("--calibration-method")] = "sigmoid",
+    threshold: Annotated[float, typer.Option("--threshold")] = 0.1,
+    feature_groups: Annotated[str, typer.Option("--feature-groups")] = "",
+) -> None:
+    """Freeze a selection into reports/locks/<lock_id>.json (clean tree required)."""
+    try:
+        cfg_dir = _config_dir(ctx)
+        data_cfg = load_data_config(cfg_dir)
+        partition_cfg = load_partition_config(cfg_dir)
+        from risklab.data.loaders import partition_info
+        from risklab.manifest import sha256_file
+
+        registry = load_registry(cfg_dir)
+        groups = [g for g in feature_groups.split(",") if g] or [
+            g for g in registry.all_groups() if g != "application"
+        ]
+        info = partition_info(
+            "train", data_cfg=data_cfg, partition_cfg=partition_cfg, config_dir=cfg_dir
+        )
+        lock = create_lock(
+            locks_dir=data_cfg.reports_dir / "locks",
+            model_run_id=model_run_id,
+            feature_set="full",
+            feature_groups=groups,
+            contract_version=registry.contract_version,
+            calibration_method=calibration_method,
+            threshold=threshold,
+            config={
+                "calibration_method": calibration_method,
+                "threshold": threshold,
+                "groups": groups,
+            },
+            partition_hash=info.partition_hash,
+            data_manifest_hash=sha256_file(data_cfg.manifest_path),
+            model_path=model_path,
+            root=project_root(cfg_dir),
+        )
+    except (ConfigError, LoaderError, SelectionError) as exc:
+        _fail(str(exc))
+    typer.echo(f"Selection locked: {lock['lock_id']}")
+
+
+@app.command("final-eval")
+def final_eval(
+    ctx: typer.Context,
+    lock: Annotated[str, typer.Option("--lock")],
+    acknowledge_test_reuse: Annotated[str | None, typer.Option("--acknowledge-test-reuse")] = None,
+) -> None:
+    """Evaluate the locked model on Test (once per lock)."""
+    try:
+        cfg_dir = _config_dir(ctx)
+        data_cfg = load_data_config(cfg_dir)
+        partition_cfg = load_partition_config(cfg_dir)
+        result = run_final_eval(
+            lock_id=lock,
+            locks_dir=data_cfg.reports_dir / "locks",
+            reports_dir=data_cfg.reports_dir,
+            root=project_root(cfg_dir),
+            data_cfg=data_cfg,
+            partition_cfg=partition_cfg,
+            config_dir=cfg_dir,
+            acknowledge_test_reuse=acknowledge_test_reuse,
+        )
+    except (ConfigError, FinalEvalError) as exc:
+        _fail(str(exc))
+    typer.echo(
+        f"Final eval {result['lock_id']}: {result['metrics']} "
+        f"(Test openings: {result['test_openings_total']})"
+    )
+
+
+@app.command()
+def verify(
+    ctx: typer.Context,
+    reference: Annotated[Path, typer.Option("--reference")] = Path("reports/reference"),
+) -> None:
+    """Compare fresh manifests against the committed reference directory."""
+    try:
+        cfg_dir = _config_dir(ctx)
+        data_cfg = load_data_config(cfg_dir)
+        report = verify_reference(reference, data_cfg.reports_dir / "manifests")
+    except ConfigError as exc:
+        _fail(str(exc))
+    typer.echo(f"Verify {'passed' if report['passed'] else 'FAILED'}: {report['checks']}")
+    if not report["passed"]:
+        raise typer.Exit(code=1)
+
+
+def _audit_path(ctx: typer.Context) -> Path:
+    return project_root(_config_dir(ctx)) / "reports" / "registry_audit.jsonl"
+
+
+registry_app = typer.Typer(help="MLflow registry alias management.")
+app.add_typer(registry_app, name="registry")
+
+
+@registry_app.command("status")
+def registry_status() -> None:
+    """Show the champion alias resolution."""
+    from risklab.registry.client import RegistryError, resolve_champion
+
+    try:
+        info = resolve_champion()
+    except RegistryError as exc:
+        _fail(str(exc))
+    typer.echo(str(info))
+
+
+@registry_app.command("promote")
+def registry_promote(
+    ctx: typer.Context,
+    version: Annotated[str, typer.Option("--version")],
+    reason: Annotated[str, typer.Option("--reason")] = "",
+) -> None:
+    """Move @champion to a version and record the audit entry."""
+    from risklab.registry.client import RegistryError, resolve_champion, set_alias
+
+    try:
+        try:
+            previous = resolve_champion()["version"]
+        except RegistryError:
+            previous = None
+        set_alias(version)
+    except RegistryError as exc:
+        _fail(str(exc))
+    from risklab.manifest import write_json_atomic  # noqa: F401
+    from risklab.registry.audit import append_audit
+
+    append_audit(
+        Path("reports/registry_audit.jsonl"),
+        action="promote",
+        from_version=previous,
+        to_version=version,
+        actor="cli",
+        reason=reason,
+    )
+    typer.echo(f"Champion -> version {version}")
+
+
+@registry_app.command("rollback")
+def registry_rollback(
+    ctx: typer.Context,
+    version: Annotated[str, typer.Option("--version")],
+    reason: Annotated[str, typer.Option("--reason")] = "",
+) -> None:
+    """Roll @champion back to a previous version (audit-logged)."""
+    from risklab.registry.client import RegistryError, resolve_champion, set_alias
+
+    try:
+        try:
+            previous = resolve_champion()["version"]
+        except RegistryError:
+            previous = None
+        set_alias(version)
+    except RegistryError as exc:
+        _fail(str(exc))
+    from risklab.registry.audit import append_audit
+
+    append_audit(
+        Path("reports/registry_audit.jsonl"),
+        action="rollback",
+        from_version=previous,
+        to_version=version,
+        actor="cli",
+        reason=reason,
+    )
+    typer.echo(f"Champion rolled back -> version {version}")

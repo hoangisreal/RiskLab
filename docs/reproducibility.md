@@ -1,0 +1,3 @@
+# Reproducibility
+
+All seeds come from config; LightGBM runs deterministic with fixed threads; DuckDB outputs are sorted by key. Each pipeline step writes `reports/manifests/<step>.json` (input/config/git/version hashes). `scripts/recompute_metrics.py` recomputes metrics from logged prediction files with plain scikit-learn. `risklab verify --reference reports/reference/` compares a fresh run: raw SHA256 and partition hash exactly, feature tables within 1e-9 relative difference, metrics within 1e-6 on the same platform/image (1e-3 across platforms, documented not guaranteed). Only hashes and aggregate metrics are committed under `reports/reference/`.

@@ -1,0 +1,11 @@
+# E2: application-only vs added historical feature groups (MASTER_PLAN Section 6).
+# Declared BEFORE the run. Serve a group only if its marginal ROC-AUC gain clears
+# min_gain with the paired-bootstrap CI lower bound above 0.
+experiment_name: risklab-e2-feature-groups
+seed: 20261101
+min_gain: 0.003
+bootstrap_resamples: 1000
+bootstrap_seed: 20261101
+ci_level: 0.95
+# Cumulative ablation order, then leave-one-group-out from the full set.
+ablation_order: [application, bureau, bureau_balance, previous, installments, pos_cash, credit_card]

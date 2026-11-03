@@ -1,0 +1,7 @@
+# E4: threshold vs precision/recall/approval rate/expected cost (MASTER_PLAN Section 5).
+experiment_name: risklab-e4-threshold
+seed: 20261101
+cost_fp: 1.0
+cost_fn: 10.0
+threshold_grid_size: 200
+sensitivity_ratios: [2, 5, 10, 20]

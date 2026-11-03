@@ -1,0 +1,10 @@
+# Monitoring thresholds (MASTER_PLAN Phase 4). Calibrated from control batches so the
+# false-alarm rate at the chosen PSI thresholds stays at or below false_alarm_target.
+psi_warn: 0.1
+psi_alert: 0.25
+ks_alert: 0.2
+false_alarm_target: 0.05
+min_n: 200
+min_positives: 20
+batch_size: 2000
+seed: 20261101

@@ -24,3 +24,6 @@ build/
 
 # Notebooks
 .ipynb_checkpoints/
+
+# Built feature tables (regenerable)
+/features/

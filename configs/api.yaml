@@ -1,0 +1,4 @@
+# API limits (MASTER_PLAN Section 10.2). Payloads are never logged.
+max_records_per_source: 5000
+max_body_bytes: 5000000
+explanation_top_k: 5

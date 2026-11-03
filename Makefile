@@ -42,3 +42,15 @@ e1:
 
 diagnostics:
 	uv run risklab diagnostics
+
+features:
+	uv run risklab features
+
+e2:
+	uv run risklab e2
+
+e3:
+	uv run risklab e3
+
+e4:
+	uv run risklab e4

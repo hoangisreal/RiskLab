@@ -1,0 +1,8 @@
+# Threshold / business-cost assumptions (MASTER_PLAN Section 5 step 4, E4).
+# Base assumption: a false negative (missed defaulter) costs 10x a false positive
+# (rejected good applicant). Sensitivity scans C_FN/C_FP in [2, 20]; it is reported,
+# never optimised on Test.
+cost_fp: 1.0
+cost_fn: 10.0
+threshold_grid_size: 200
+sensitivity_ratios: [2, 5, 10, 20]
