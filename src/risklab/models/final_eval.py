@@ -139,17 +139,19 @@ def run_final_eval(
     acknowledge_test_reuse: str | None = None,
 ) -> dict[str, Any]:
     """Evaluate the locked model on Test once; idempotent per lock."""
+    out_dir = reports_dir / "final_eval" / lock_id
+    result_path = out_dir / "result.json"
+    entries = _ledger_entries(reports_dir)
+    if result_path.is_file() and any(e.get("lock_id") == lock_id for e in entries):
+        # Stored result wins: re-running a completed lock never re-opens Test,
+        # even after later commits (plan 4.3, step 4).
+        stored: dict[str, Any] = json.loads(result_path.read_text(encoding="utf-8"))
+        return stored
     try:
         lock = load_lock(locks_dir, lock_id)
         verify_lock(lock, root=root)
     except SelectionError as exc:
         raise FinalEvalError(str(exc)) from exc
-    out_dir = reports_dir / "final_eval" / lock_id
-    result_path = out_dir / "result.json"
-    entries = _ledger_entries(reports_dir)
-    if result_path.is_file() and any(e.get("lock_id") == lock_id for e in entries):
-        stored: dict[str, Any] = json.loads(result_path.read_text(encoding="utf-8"))
-        return stored
     if entries and acknowledge_test_reuse is None:
         raise FinalEvalError(
             "Test has already been opened (ledger has entries). Pass "

@@ -3,8 +3,8 @@
 Short handoff log. The plan lives in `docs/MASTER_PLAN.md`.
 
 - Last updated: 2026-11-01
-- Current phase: Phase 2–4 implemented and run on real data; selection locked (58ddf70a4f14f5b0); final Test evaluation awaiting owner approval to open Test
-- Test partition openings: 0 (see `reports/final_eval/ledger.jsonl` once it exists)
+- Current phase: Phase 2–4 implemented and run on real data; Test opened once (lock e98453beb10d833e): ROC-AUC 0.77320 on 46,127 Test rows
+- Test partition openings: 1 (lock e98453beb10d833e; see `reports/final_eval/ledger.jsonl`)
 
 ## Phase status
 
