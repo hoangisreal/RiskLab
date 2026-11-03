@@ -27,6 +27,16 @@ def create_app(
     store = store or ModelStore()
     registry = load_registry(config_dir)
     app = FastAPI(title="RiskLab", version="1.0")
+    if store.current is None:
+        import os as _os
+
+        if _os.environ.get("MLFLOW_TRACKING_URI"):
+            try:
+                from risklab.api.model_store import load_from_registry
+
+                load_from_registry(store)
+            except Exception:
+                pass  # stay not-ready; /health reports it, reload can retry
     app.state.store = store
     app.state.monitoring_batches = monitoring_batches or {}
 

@@ -17,3 +17,5 @@ curl http://127.0.0.1:8000/health
 ```
 
 Candidate models intended for registration should be trained in the `train` container (`docker compose run --rm train ...` (the image entrypoint already supplies `risklab`)) so library versions match the API image; the load-time version/contract check rejects mismatches. The MLflow port is bound to localhost only (the server has no authentication). Backup: stop the server and copy `mlflow-data/`.
+
+Verified 2026-11-03: `docker compose up -d --build` brings up MLflow (healthy) and the API; the API resolves `@champion` at startup, `/health` reports `ready: true` with model version 1 (lock e98453beb10d833e), `/predict` returns a probability for a no-history payload and 422 when a required source is `not_provided`.

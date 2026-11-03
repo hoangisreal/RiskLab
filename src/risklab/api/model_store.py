@@ -74,4 +74,28 @@ class ModelStore:
         return loaded
 
 
-__all__ = ["LoadedModel", "ModelStore", "ModelStoreError"]
+__all__ = ["LoadedModel", "ModelStore", "ModelStoreError", "load_from_registry"]
+
+
+def load_from_registry(store: ModelStore) -> LoadedModel:
+    """Resolve @champion to a pinned version and load it (startup path)."""
+    import mlflow
+    import mlflow.sklearn
+
+    from risklab.registry.client import MODEL_NAME, resolve_champion
+
+    info = resolve_champion()
+    version = str(info["version"])
+    tags = dict(info.get("tags") or {})
+    model = mlflow.sklearn.load_model(f"models:/{MODEL_NAME}/{version}")
+    loaded = LoadedModel(
+        version=version,
+        model=model,
+        threshold=float(tags.get("threshold", 0.1)),
+        contract_version=str(tags.get("contract_version", "1.0")),
+        feature_groups=[g for g in str(tags.get("feature_groups", "")).split(",") if g],
+        run_id=info.get("run_id"),
+        lock_id=tags.get("lock_id"),
+    )
+    store.swap(loaded)
+    return loaded

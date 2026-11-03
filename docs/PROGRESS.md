@@ -49,7 +49,7 @@ Short handoff log. The plan lives in `docs/MASTER_PLAN.md`.
 - [x] Registry promotion gate, alias CLI with audit log, FastAPI (`/predict`, `/models/current`, `/health`, `/monitoring/evaluate`, admin reload), Dockerfile + docker-compose
 - [x] Monitoring: PSI/KS drift, labeled-batch performance, subgroup report with suppression, seeded batch simulator
 - [x] Run E2/E3/E4 on real data with MLflow tracking (runs cf726679…, 7296da8d…, b24c3fff… in `docs/experiments.md`); champion trained (calibration none, threshold 0.0839, served groups previous+installments) and selection locked as 58ddf70a4f14f5b0. `final-eval` still requires explicit owner approval because it opens Test
-- [x] Monitoring control check on real Monitoring pool: 0/10 alerts at score PSI 0.25 (indicative). Rollback demo and Locust load test remain open
+- [x] Monitoring control check (0/10 alerts), rollback demo (gate block + force-promote + detection + rollback, audit-logged) and load baseline (`scripts/load_test.py`; Locust not adopted — httpx script covers the report)
 
 ## Decisions log
 
