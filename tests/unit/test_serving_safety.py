@@ -131,3 +131,17 @@ def test_promote_requires_gate_and_force_reason(monkeypatch, tmp_path):
     assert result.exit_code == 0, result.output
     alias.assert_called_once_with("2")
     assert "FORCE: regression demo" in (tmp_path / "audit.jsonl").read_text()
+
+
+def test_diagnostic_model_card_uses_its_own_identity_and_metrics(tmp_path, bundle):
+    from risklab.registry.register import _model_card_text
+
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs/model_card.md").write_text("selected-model-description")
+    assert "selected-model-description" in _model_card_text(tmp_path, bundle)
+    bundle.purpose = "rollback_demo_only"
+    text = _model_card_text(tmp_path, bundle)
+    assert "selected-model-description" not in text
+    assert bundle.selection_run_id in text and bundle.model_sha256 in text
+    assert "roc_auc: 0.75" in text
+    assert "No Test evaluation is claimed" in text

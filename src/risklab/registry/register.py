@@ -17,6 +17,26 @@ from risklab.registry.client import MODEL_NAME, _client
 from risklab.tracking import require_tracking_uri
 
 
+def _model_card_text(root: Path, serving: ServingConfig) -> str:
+    if serving.purpose == "rollback_demo_only":
+        text = (
+            "# Diagnostic rollback artifact\n\n"
+            "Intentionally trained on permuted Train labels for the controlled rollback exercise. "
+            "Unsuitable for credit decisions. No Test evaluation is claimed. The threshold is "
+            "copied from the verified selected model, not optimized for this artifact.\n\n"
+            f"Selection metrics, run `{serving.selection_run_id}`:\n\n"
+        )
+        text += "\n".join(f"- {name}: {value}" for name, value in serving.selection_metrics.items())
+        text += "\n"
+    else:
+        card = root / "docs/model_card.md"
+        text = card.read_text() if card.is_file() else "# RiskLab model card\n"
+    return text + (
+        f"\n\nPinned bundle: lock `{serving.lock_id}`, Selection run `{serving.selection_run_id}`, "
+        f"artifact `{serving.model_sha256}`, purpose `{serving.purpose}`.\n"
+    )
+
+
 def register(lock_id: str, *, root: Path, config_dir: Path) -> tuple[str, str]:
     cfg = load_data_config(config_dir)
     lock = load_lock(cfg.reports_dir / "locks", lock_id)
@@ -80,19 +100,7 @@ def register(lock_id: str, *, root: Path, config_dir: Path) -> tuple[str, str]:
             raise ValueError("reference profile changed after the candidate was locked")
         mlflow.log_artifact(str(profile_path))
         mlflow.log_dict(lock, "selection_lock.json")
-        card = root / "docs/model_card.md"
-        text = card.read_text() if card.is_file() else "# RiskLab model card\n"
-        text += (
-            f"\n\nPinned bundle: lock `{lock_id}`, Selection run `{serving.selection_run_id}`, "
-            f"artifact `{serving.model_sha256}`, purpose `{serving.purpose}`.\n"
-        )
-        if serving.purpose == "rollback_demo_only":
-            text = (
-                "# Diagnostic rollback artifact\n\n"
-                "Intentionally trained on corrupted Train labels; "
-                "unsuitable for credit decisions.\n\n" + text
-            )
-        mlflow.log_text(text, "model_card.md")
+        mlflow.log_text(_model_card_text(root, serving), "model_card.md")
         mlflow.log_artifact(lock["model_path"], "evaluated_artifact")
         mlflow.sklearn.log_model(
             model,
