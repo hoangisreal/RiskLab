@@ -44,7 +44,7 @@ def main() -> None:
         mlflow.log_metrics({f"selection_{k}": float(v) for k, v in metrics.items()})
         mlflow.log_dict(serving, "serving_config.json")
         mlflow.log_dict(gate, "gate_report.json")
-        info = mlflow.sklearn.log_model(  # type: ignore[attr-defined]
+        mlflow.sklearn.log_model(  # type: ignore[attr-defined]
             model,
             name="model",
             registered_model_name=MODEL_NAME,
