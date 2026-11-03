@@ -22,6 +22,7 @@ class LoadedModel:
     lock_id: str | None = None
     serving_config: ServingConfig | None = None
     reference_profile: ReferenceProfile | None = None
+    registered_at_ms: int | None = None
 
 
 class ModelStoreError(Exception):
@@ -128,6 +129,7 @@ def load_from_registry(
         lock_id=config.lock_id,
         serving_config=config,
         reference_profile=profile,
+        registered_at_ms=info.get("registered_at_ms"),
     )
     store.swap(loaded)
     return loaded

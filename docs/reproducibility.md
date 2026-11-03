@@ -34,7 +34,7 @@ Verification fails for absent/empty/malformed references, missing outputs, chang
 
 `scripts/recompute_metrics.py reports/experiments/EXPERIMENT` imports no RiskLab code and checks Selection ROC-AUC, PR-AUC, Brier and log loss with plain scikit-learn. It supports E1, repeated E1, E2 cumulative/leave-one-out, E3 and policy predictions. It requires the recorded source run ID. Prediction files remain ignored by git.
 
-Future authorized final evaluations save their own run, locked report, CIs/subgroups, predictions and manifest. They remain separate from reproduction. The legacy Test report has no saved prediction file; missing historical uncertainty is not silently backfilled.
+The authorized final evaluation saved its own run `a9fc07a3cbaf43ab88d450ed6a3eca58` for lock `402b9e050159762d`, with metric/subgroup CIs, predictions and a manifest. Its source revision is `98f5ab3`; later aggregate-reporting/documentation changes do not alter predictive inputs, the frozen artifact or the completed lock. A repeated call for this lock returns the stored result without opening Test again. Final evaluation remains separate from reproduction. The legacy Test report has no saved prediction file; missing historical uncertainty is not silently backfilled.
 
 ## Runtime and upstream verification
 

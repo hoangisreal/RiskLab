@@ -26,9 +26,29 @@ These metrics come from run `9a84a8cc279846e88b110f06ee3ea69c`. Selection is reu
 
 The global reject/review threshold is **0.08040201**, chosen on Selection in run `92aa4caf17fd434f95ad13dd80de5198`. FP cost is assumed margin 0.05 × credit; FN cost is assumed LGD 0.50 × credit. The Bayes reference is 0.09090909. Selection approval is 0.692238 and recall 0.682111 at the chosen threshold, under those illustrative assumptions. Costs use dataset monetary units, not measured realized losses. Fixed LGD/margin sensitivity is reported in that run; no assumption was selected from Test.
 
-## Test evidence and approval status
+## Locked Test evidence
 
-The corrected artifact has **not been evaluated on Test**. A new content-bound selection lock and explicit owner authorization are required before another opening. Do not attribute the historical result below to this artifact.
+Final evaluation run **`a9fc07a3cbaf43ab88d450ed6a3eca58`**, lock **`402b9e050159762d`**, evaluated 46,127 applicants using the unchanged artifact above and clean source revision `98f5ab3`. The owner approved this reuse on 2026-11-04 after all model, feature, calibration and threshold decisions were frozen. This is the second Test opening overall and the only opening for this lock. The acknowledgment, durable journal, predictions, manifest and aggregate report are retained locally and in MLflow; Test results caused no further selection.
+
+| Test metric | Value | 95% CI |
+|---|---:|---|
+| ROC-AUC | 0.775432 | [0.767577, 0.782915] |
+| PR-AUC | 0.256541 | [0.245630, 0.269374] |
+| Brier | 0.067150 | [0.066568, 0.067690] |
+| Log loss | 0.241822 | [0.239487, 0.244109] |
+
+Intervals use the locked 1,000-resample stratified percentile bootstrap. At the unchanged threshold 0.08040201, approval is 0.691569, precision 0.179940, recall 0.687433, FPR 0.275146 and FNR 0.312567. Proxy cost is 14,772.60 dataset monetary units per applicant under the frozen LGD/margin assumptions. ECE is 0.007156 and calibration-in-the-large is -0.001082. All Test figures in this section belong to the run/lock above.
+
+The report covers all seven required subgroup dimensions: gender, age band, income, education, region, contract and bureau-history availability. It publishes 23 of 28 levels; five levels are suppressed under the locked minimum 200 rows / 20 positives. Subgroup intervals use 1,000 ordinary bootstrap samples.
+
+| Descriptive Test subgroup | Rows / positives | AUC [95% CI] | FNR [95% CI] |
+|---|---|---|---|
+| Age ≤25 | 1,839 / 214 | 0.738 [0.705, 0.772] | 0.187 [0.136, 0.239] |
+| Pensioner | 8,210 / 447 | 0.742 [0.717, 0.764] | 0.539 [0.496, 0.584] |
+| Age >65 | 1,163 / 42 | 0.752 [0.676, 0.817] | 0.667 [0.532, 0.810] |
+| No bureau history | 6,548 / 667 | 0.755 [0.735, 0.775] | 0.240 [0.210, 0.272] |
+
+Young applicants have weaker observed discrimination and FPR 0.512 [0.488, 0.534]; pensioners/older applicants have higher observed FNR. Groups overlap, small-positive intervals are broad and comparisons are descriptive without multiplicity adjustment. These observations establish neither causality nor legal fairness and do not change the frozen threshold. Full Brier, calibration, approval, FPR/FNR intervals and all subgroup rows are in the evaluation artifact.
 
 Historical contract 1.0: lock `e98453beb10d833e`, recorded model run `cf726679c64d467f8ed86c9837fa57d6`, 46,127 Test rows, one recorded opening. Reported ROC-AUC 0.77320, PR-AUC 0.25114, Brier 0.06735 and log loss 0.24260. That legacy report lacks a separate evaluation run, saved predictions, confidence intervals and subgroup tables. It remains immutable; missing evidence is not retroactively invented. Any authorized new evaluation is disclosed as reuse and must not feed further model choices.
 
@@ -44,7 +64,7 @@ The bundle exposes lock/run/artifact/runtime identity, frozen assumptions and pa
 
 ## Operational verification
 
-Fresh reproduction run `c3a42f2254144abf9d470f3495e13345` regenerates identical feature values and the identical artifact hash. Actual HTTP verification run `6fa54cc59a9043ba85f8982149f46fc3` checks 500 seeded Train payloads against the registered artifact with maximum absolute probability difference 0, including the frozen threshold/recommendation and an explanation check. Registration run `409c012818844b38a980658db22f12b3` serves this artifact as version 4 under operational lock `f7107d92f1159055`; a final-evaluation lock must bind the current clean revision before an authorized new Test opening.
+Fresh reproduction run `c3a42f2254144abf9d470f3495e13345` regenerates identical feature values and the identical artifact hash. Actual HTTP verification run `6fa54cc59a9043ba85f8982149f46fc3` checks 500 seeded Train payloads against the registered artifact with maximum absolute probability difference 0, including the frozen threshold/recommendation and an explanation check. Operational registration run `409c012818844b38a980658db22f12b3` established the proof as version 4. Final registration run `28cfaf15adec482d98b12516a4744f2f` serves the identical artifact as version 6 under evaluated lock `402b9e050159762d`. Later changes expose cached aggregate evaluation metadata and update documentation; predictive protocol, artifact and lock remain unchanged.
 
 The controlled rollback exercise completed in run `1f82bddd7d374a7181a57445f65c9bc9`, including gate blocking, audited force promotion, detection, API restoration and the both-version concept-shift case. Mild covariate shift was missed at the declared thresholds; current monitoring evidence and subgroup uncertainty are reported in monitoring.md. Pensioner/older control subgroups have weaker observed discrimination/recall with broad intervals (control run `33a3e767bd284070929c04106f841cd6`), not a causal or fairness conclusion.
 

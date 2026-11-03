@@ -5,7 +5,7 @@ Contract **1.1** uses raw application fields and applicant-local history. The cu
 | Endpoint | Behavior |
 |---|---|
 | `POST /predict` | Shared cleaning and feature SQL, calibrated probability, frozen threshold, `approve`/`review`, model/contract version, source groups, warnings and optional explanation |
-| `GET /models/current` | Pinned model identity, purpose, artifact hash, provenance, feature groups, calibration and frozen cost assumptions |
+| `GET /models/current` | Pinned model identity, registration time, purpose, artifact/profile hashes, feature columns/schema hash, protocol/runtime provenance, calibration, frozen costs, Selection metrics and matching completed Test evidence |
 | `GET /health` | Independent liveness and model readiness |
 | `POST /monitoring/evaluate` | Registered `batch_id` and optional pinned `model_version`; unknown IDs return 404 |
 | `POST /admin/models/reload` | Admin key from the environment; validate/download before swapping; failure keeps the loaded model |
@@ -38,3 +38,5 @@ Realized events must be non-future and required event dates cannot be missing. P
 Explanations contain the base model's raw log odds, base value and largest original-feature contributions. LR one-hot and missing-indicator terms are grouped back to original inputs; LightGBM uses native TreeSHAP. The contribution sum reconstructs the base log odds. Sigmoid/isotonic calibration is a later mapping, so those terms do not decompose calibrated probability. They are diagnostic model explanations, not regulated adverse-action reasons.
 
 Bundles require `serving_config.json`, an immutable aggregate `reference_profile.json`, a model card, compatible runtime/input columns, full parity evidence and a content-bound selection lock. The profile's exact bytes, feature list, model hash, contract and Selection aggregates are checked before loading. Reload failure returns 502 and preserves the prior model. A diagnostic rollback artifact is identified by `purpose=rollback_demo_only`.
+
+`final_evaluation` contains cached aggregate Test metrics, confidence intervals, row count, evaluation run/lock IDs and total Test openings for the exact loaded bundle. It is `null` without a complete matching lock/report/journal record, including legacy reports without their own evaluation run. Reading this metadata never evaluates Test or reads row predictions. `registered_at_ms` is the registry creation timestamp in Unix milliseconds. `feature_schema_hash` hashes the contract version, ordered input columns and served groups; `protocol_hashes` separately exposes config/SQL/implementation hashes. Test results are reporting evidence and never participate in the Selection promotion gate.

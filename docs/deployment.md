@@ -48,6 +48,8 @@ docker compose run --rm train final-eval --lock LOCK_ID \
   --acknowledge-test-reuse "OWNER_APPROVED_REASON"
 ```
 
+The completed local contract-1.1 evaluation used lock `402b9e050159762d` and run `a9fc07a3cbaf43ab88d450ed6a3eca58`, following explicit owner approval on 2026-11-04. It is opening two overall, one for that lock; this does not authorize a future new lock to open Test.
+
 The durable journal records reuse before any read, including a failed/crashed evaluation. A completed lock returns its stored report without reopening Test. Never use that report to choose a model, feature, calibration method or threshold. Legacy artifacts are preserved, not relabeled as contract 1.1; the corrected contract requires its own Selection protocol and parity evidence.
 
 ## Reload, rollback and operations

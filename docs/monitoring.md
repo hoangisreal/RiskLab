@@ -47,7 +47,7 @@ Reload is an in-process operation. Use one worker for the rollback exercise; a m
 
 ## Evidence status
 
-The corrected engine, controls, real scenarios, rollback exercise and load matrix are verified below. Historical untracked rollback/load figures are not presented as evidence for this implementation. Labels are immediately available in these simulations; delayed production-label workflows remain outside this demo. New contract-1.1 Test evidence remains approval-dependent.
+The corrected engine, controls, real scenarios, rollback exercise and load matrix are verified below. Historical untracked rollback/load figures are not presented as evidence for this implementation. Labels are immediately available in these simulations; delayed production-label workflows remain outside this demo. The owner-authorized contract-1.1 Test report is now recorded in model_card.md; it is separate from Monitoring and caused no policy or model change.
 
 ## Accepted real operational evidence
 

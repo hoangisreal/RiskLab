@@ -8,12 +8,15 @@ from typing import Any
 
 from risklab.api.config import load_api_config
 from risklab.api.contract import request_model
+from risklab.api.metadata import final_evaluation_summary
 from risklab.api.middleware import RequestMiddleware
 from risklab.api.model_store import ModelStore
 from risklab.api.schemas import MonitoringRequest, PredictRequest
 from risklab.api.service import ServiceError, predict
 from risklab.api.validation import validate_history_records
+from risklab.config import load_data_config
 from risklab.features.registry import load_registry
+from risklab.manifest import config_hash
 from risklab.models.select import protocol_hashes
 
 
@@ -88,6 +91,23 @@ def create_app(
             "model_sha256": metadata.model_sha256 if metadata else None,
             "selection_metrics": metadata.selection_metrics if metadata else None,
             "selection_run_id": metadata.selection_run_id if metadata else None,
+            "feature_columns": metadata.feature_columns if metadata else None,
+            "feature_schema_hash": config_hash(
+                {
+                    "contract_version": metadata.contract_version,
+                    "feature_groups": metadata.feature_groups,
+                    "feature_columns": metadata.feature_columns,
+                }
+            )
+            if metadata
+            else None,
+            "protocol_hashes": metadata.protocol_hashes if metadata else None,
+            "library_versions": metadata.library_versions if metadata else None,
+            "reference_profile_sha256": metadata.reference_profile_sha256 if metadata else None,
+            "registered_at_ms": c.registered_at_ms,
+            "final_evaluation": final_evaluation_summary(
+                load_data_config(config_dir).reports_dir, metadata
+            ),
             "cost_assumptions": metadata.cost.model_dump() if metadata else None,
             "git_commit": metadata.git_commit if metadata else None,
             "purpose": metadata.purpose if metadata else None,

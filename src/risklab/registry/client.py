@@ -44,6 +44,7 @@ def resolve_champion() -> dict[str, Any]:
         "version": str(mv.version),
         "run_id": mv.run_id,
         "tags": dict(mv.tags or {}),
+        "registered_at_ms": mv.creation_timestamp,
     }
 
 
@@ -76,6 +77,7 @@ def resolve_version(version: str) -> dict[str, Any]:
         "version": str(mv.version),
         "run_id": mv.run_id,
         "tags": dict(mv.tags or {}),
+        "registered_at_ms": mv.creation_timestamp,
     }
 
 

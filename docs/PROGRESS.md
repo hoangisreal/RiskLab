@@ -2,9 +2,9 @@
 
 Short handoff log. The plan lives in `docs/MASTER_PLAN.md`.
 
-- Last updated: 2026-11-03
-- Current phase: contract 1.1 accepted through Selection, strict real parity and Monitoring controls; independent reproduction, operational deployment, faults/rollback and load matrix verified; final Test approval pending. The earlier contract-1.0 Test result is historical evidence only: lock e98453beb10d833e, recorded model run cf726679c64d467f8ed86c9837fa57d6. It does not evaluate the corrected contract.
-- Test partition openings: 1 (lock e98453beb10d833e; see `reports/final_eval/ledger.jsonl`)
+- Last updated: 2026-11-04
+- Current phase: mandatory Phases 0–4 verified, including contract-1.1 Selection, exact reproduction, real API/monitoring/rollback/load evidence and the owner-authorized final Test report (run a9fc07a3cbaf43ab88d450ed6a3eca58, lock 402b9e050159762d). The earlier contract-1.0 Test result is historical evidence only: lock e98453beb10d833e, recorded model run cf726679c64d467f8ed86c9837fa57d6. It does not evaluate the corrected contract.
+- Test partition openings: 2 total, one per evaluated lock (legacy e98453beb10d833e; owner-authorized contract-1.1 reuse 402b9e050159762d). The append-only `reports/final_eval/ledger.jsonl` preserves both.
 
 ## Phase status
 
@@ -12,9 +12,9 @@ Short handoff log. The plan lives in `docs/MASTER_PLAN.md`.
 |---|---|---|
 | 0. Foundations | Done | Fresh-copy setup and current branch CI pass on synthetic data |
 | 1. MVP | Done | E1 chosen model: LightGBM; later Test evaluation is recorded below |
-| 2. Portfolio-ready ML | Contract 1.1 through Selection/parity verified | Accepted E1/E2/policy/diagnostics/E3/E4 below; independent reproduction passed; new Test requires explicit approval |
+| 2. Portfolio-ready ML | Done | Accepted experiments, independent reproduction, final locked Test metrics/CIs/subgroups and model card verified; disclosed reuse approved by owner |
 | 3. Portfolio-ready serving | Real registry/API/rollback verified | Clean-commit bundle registration, real 500-payload golden check and audited rollback passed |
-| 4. Advanced | Full-engine controls verified | 100 calibration / 100 held-out controls; real faults/rollback/subgroups/load verified; mild shift missed and latency target unmet, both disclosed |
+| 4. Advanced | Done | 100 calibration / 100 held-out controls; real faults/rollback/subgroups/load verified; mild shift missed and latency target unmet, both disclosed |
 | 5. Optional | Not planned | Only on concrete need |
 
 ## Next actions (Phase 0)
@@ -98,7 +98,7 @@ Short handoff log. The plan lives in `docs/MASTER_PLAN.md`.
 
 ### Earlier evidence gaps
 
-Served-set E1/leave-one-out/history diagnostics, full-engine controls, real strict-bundle deployment, rollback and load checks were pending at the earlier correction snapshot. They are now verified in the accepted completion evidence below. New Test evidence remains approval-dependent.
+Served-set E1/leave-one-out/history diagnostics, full-engine controls, real strict-bundle deployment, rollback and load checks were pending at the earlier correction snapshot. They are now verified in the accepted completion evidence below, including the subsequently owner-authorized final Test evaluation.
 
 ### Earlier correction check record (2026-11-03)
 
@@ -149,5 +149,15 @@ Served-set E1/leave-one-out/history diagnostics, full-engine controls, real stri
 - Scenario-summary run `f1d5df3f91014aaebe595dfaab7ed6b3` detects all three upstream bugs, strong age shift and label-only shift; mild age shift is missed and disclosed. The real Kaggle batch is unlabeled and returns no performance section. Monitoring.md records source runs and subgroup CIs/weaknesses.
 - One-command rollback run `1f82bddd7d374a7181a57445f65c9bc9` blocks diagnostic v5, force-promotes with an audited reason, detects the regression, restores v4 via CLI/API reload and shows both models degrade under shared concept shift. Diagnostic cards carry their own artifact/metric identity. The legacy model and one-entry Test journal hashes are unchanged.
 - Load runs `666d3ba6f62541efa8892ddf68aa64d8` (one worker) and `2e384c5b561f4186ada07a39bac466ed` (four workers) have 0/200 errors in each empty/full-history case at concurrency eight. Single-client diagnostic `41cc517ba01145b38cf4893d372abb1b` also has no errors. The indicative 100 ms target is unmet; measured figures and hardware are published without a production SLO claim. Serving returns to one worker.
-- Final `make test`: lint/format/mypy pass; 373 synthetic tests pass, ten data tests deselected, one upstream Starlette testclient deprecation warning. This includes failure-preserving reload guards for unknown source groups and label/identifier inputs. The final train/API images build successfully. Current private review and revision checks: https://github.com/hoangisreal/RiskLab/pull/1. Final deployment identity and CI links are retained locally in `reports/operations/final-deployment.json` and attached to the registration run, avoiding a documentation commit that would invalidate its clean-revision lock.
-- Remaining owner decision: one explicitly authorized, disclosed Test reuse for a final clean-revision lock of the already frozen artifact. No model/feature/calibration/threshold decision remains to be made. Optional Phase 5 infrastructure remains out of scope.
+- Pre-Test `make test`: lint/format/mypy pass; 373 synthetic tests pass, ten data tests deselected, one upstream Starlette testclient deprecation warning. This includes failure-preserving reload guards for unknown source groups and label/identifier inputs. The final train/API images build successfully. Current private review and revision checks: https://github.com/hoangisreal/RiskLab/pull/1. Final deployment identity and CI links are retained locally in `reports/operations/final-deployment.json` and attached to the registration run, avoiding a documentation commit that would invalidate its clean-revision lock.
+- D18 (2026-11-04): the owner approved one disclosed Test reuse for frozen lock `402b9e050159762d` with the reply "ok". The approval and acknowledgment are attached to evaluation run `a9fc07a3cbaf43ab88d450ed6a3eca58`. No model/feature/calibration/threshold decision follows Test. Optional Phase 5 infrastructure remains out of scope.
+
+
+### Final evaluation and completion (2026-11-04)
+
+- Final lock `402b9e050159762d` binds clean source `98f5ab3`, frozen artifact `f5e4d127174bde337f03ed14d47ba050efe6f45ba4c599d0e6e558a256b0d676` and the already selected threshold 0.08040201. Version 6 registration run `28cfaf15adec482d98b12516a4744f2f` serves this exact artifact; the final deployment/CI record is attached to that run.
+- Owner-authorized Test run `a9fc07a3cbaf43ab88d450ed6a3eca58`: 46,127 rows; ROC-AUC 0.775432 [0.767577, 0.782915], PR-AUC 0.256541 [0.245630, 0.269374], Brier 0.067150 [0.066568, 0.067690], log loss 0.241822 [0.239487, 0.244109]. Intervals use the locked 1,000-resample 95% bootstrap. No selection decision follows these results.
+- The report includes frozen-threshold costs/calibration and all seven subgroup dimensions: 23 reported levels and five suppressed. Pensioner/older recall and young-applicant discrimination/FPR are descriptive weaknesses with CIs in model_card.md. Predictions remain ignored; file hashes, model identity, ledger count and MLflow metrics are verified without reopening rows.
+- The journal has exactly two entries, one per evaluated lock, with explicit reuse approval. Legacy evidence is preserved. Repeating the completed lock returns its cached report; any future new opening requires another explicit acknowledgment/authorization.
+- Final completeness review found the planned `/models/current` Test/provenance metadata absent. Reporting now exposes cached aggregate results only after matching the content-bound lock, serving artifact, Selection run and durable journal. It also exposes the feature schema/protocol/runtime hashes and registration timestamp. Missing, partial, non-finite or mismatched results yield null; prediction/gating code is unchanged. Focused synthetic safety/isolation checks pass (31 tests).
+- Final `make test` after aggregate metadata completion: lint/format/mypy pass; 380 synthetic tests pass, ten data tests deselected, one upstream Starlette warning. Final train/API images build; live HTTP metadata matches the completed Test run/lock/CIs and registry timestamp. Prediction/explanation checks and cached-result idempotence pass; the journal remains at two openings. CI evidence and final model-card addenda are attached to the evaluation/registration runs.

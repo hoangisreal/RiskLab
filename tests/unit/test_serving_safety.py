@@ -61,7 +61,11 @@ def test_reload_changes_current_and_failed_reload_keeps_it(monkeypatch, bundle):
     store.swap(old)
     http = TestClient(create_app(store=store, root=REPO_ROOT, config_dir=CONFIG_DIR))
     monkeypatch.setenv("RISKLAB_ADMIN_API_KEY", "synthetic-key")
-    monkeypatch.setattr(client, "resolve_champion", lambda: {"version": "2", "run_id": "new-run"})
+    monkeypatch.setattr(
+        client,
+        "resolve_champion",
+        lambda: {"version": "2", "run_id": "new-run", "registered_at_ms": 1790000000000},
+    )
     monkeypatch.setattr(client, "read_serving_config", lambda info: bundle)
     monkeypatch.setattr(client, "read_reference_profile", lambda *args: None)
     model = SimpleNamespace(feature_names_in_=np.array(["AMT_CREDIT"]))
@@ -71,6 +75,7 @@ def test_reload_changes_current_and_failed_reload_keeps_it(monkeypatch, bundle):
     response = http.post("/admin/models/reload", headers={"x-admin-key": "synthetic-key"})
     assert response.status_code == 200
     assert http.get("/models/current").json()["model_version"] == "2"
+    assert http.get("/models/current").json()["registered_at_ms"] == 1790000000000
     assert store.current.model is model
     assert store.current.threshold == bundle.threshold
     loader.assert_called_once_with("models:/risklab-credit-risk/2")
@@ -150,3 +155,92 @@ def test_diagnostic_model_card_uses_its_own_identity_and_metrics(tmp_path, bundl
     assert bundle.selection_run_id in text and bundle.model_sha256 in text
     assert "roc_auc: 0.75" in text
     assert "No Test evaluation is claimed" in text
+
+
+@pytest.mark.parametrize(
+    "fault", [None, "report_lock", "artifact", "journal_run", "missing_run", "metric", "partial"]
+)
+def test_current_metadata_requires_matching_completed_evaluation(
+    tmp_path, monkeypatch, bundle, fault
+):
+    import json
+
+    import risklab.api.main as api_main
+    from risklab.manifest import sha256_file
+    from risklab.models import select
+
+    reports = tmp_path / "reports"
+    model = tmp_path / "frozen-model.bin"
+    model.write_bytes(b"synthetic-frozen-artifact")
+    monkeypatch.setattr(select, "git_info", lambda _: {"commit": "synthetic", "dirty": False})
+    lock = select.create_lock(
+        locks_dir=reports / "locks",
+        model_run_id=bundle.selection_run_id,
+        feature_set="application",
+        feature_groups=bundle.feature_groups,
+        contract_version=bundle.contract_version,
+        calibration_method=bundle.calibration_method,
+        threshold=bundle.threshold,
+        config={},
+        partition_hash=bundle.partition_hash,
+        data_manifest_hash=bundle.data_manifest_hash,
+        model_path=model,
+        root=REPO_ROOT,
+    )
+    bundle.lock_id = lock["lock_id"]
+    bundle.model_sha256 = sha256_file(model)
+    result = {
+        "lock_id": lock["lock_id"],
+        "model_run_id": bundle.selection_run_id,
+        "run_id": "synthetic-final-run",
+        "metrics": dict(bundle.selection_metrics),
+        "metric_ci": {
+            name: {"ci_low": value - 0.01, "ci_high": value + 0.01}
+            for name, value in bundle.selection_metrics.items()
+        },
+        "ci_level": 0.95,
+        "rows": 1000,
+        "test_openings_total": 1,
+        "evaluated_at": "2026-11-01T00:00:00+00:00",
+        "threshold": bundle.threshold,
+        "calibration_method": bundle.calibration_method,
+        "predictions_path": "private-row-predictions",
+    }
+    entry = {key: result[key] for key in ("lock_id", "run_id", "test_openings_total")}
+    if fault == "report_lock":
+        result["lock_id"] = "c" * 16
+    elif fault == "artifact":
+        bundle.model_sha256 = "d" * 64
+    elif fault == "journal_run":
+        entry["run_id"] = "another-run"
+    elif fault == "missing_run":
+        result["run_id"] = None
+    elif fault == "metric":
+        result["metrics"]["roc_auc"] = float("nan")
+    directory = reports / "final_eval" / lock["lock_id"]
+    directory.mkdir(parents=True)
+    (directory / "result.json").write_text("{" if fault == "partial" else json.dumps(result))
+    (directory.parent / "ledger.jsonl").write_text(json.dumps(entry) + "\n")
+    monkeypatch.setattr(
+        api_main, "load_data_config", lambda _: SimpleNamespace(reports_dir=reports)
+    )
+    store = ModelStore()
+    store.swap(LoadedModel("2", object(), bundle.threshold, "1.1", [], serving_config=bundle))
+    http = TestClient(create_app(store=store, root=REPO_ROOT, config_dir=CONFIG_DIR))
+    response = http.get("/models/current")
+    assert response.status_code == 200
+    metadata = response.json()
+    assert metadata["feature_columns"] == ["AMT_CREDIT"]
+    assert len(metadata["feature_schema_hash"]) == 64
+    assert metadata["protocol_hashes"] == bundle.protocol_hashes
+    assert metadata["library_versions"] == bundle.library_versions
+    if fault is None:
+        final = metadata["final_evaluation"]
+        assert final["metrics"] == result["metrics"]
+        assert final["run_id"] == result["run_id"]
+        assert final["lock_id"] == lock["lock_id"]
+        assert "predictions_path" not in final
+    else:
+        assert metadata["final_evaluation"] is None
+    (directory / "result.json").unlink()
+    assert http.get("/models/current").json()["final_evaluation"] is None

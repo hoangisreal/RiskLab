@@ -2,8 +2,8 @@
 
 Credit Risk Prediction & Model Monitoring on the Home Credit Default Risk dataset.
 
-- Status: approved direction, not started. Live status is tracked in `docs/PROGRESS.md`.
-- Last revised: 2026-11-01.
+- Status: approved implementation plan. Live status and completion evidence are tracked in `docs/PROGRESS.md`.
+- Last revised: 2026-11-04 (status clarification; experiment decisions remain in PROGRESS.md).
 - Audience: the project owner and any coding agent working in this repository (see `AGENTS.md`).
 
 ---
