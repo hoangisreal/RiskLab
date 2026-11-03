@@ -3,7 +3,7 @@
 Short handoff log. The plan lives in `docs/MASTER_PLAN.md`.
 
 - Last updated: 2026-11-01
-- Current phase: Phase 2–4 code implemented (synthetic-tested); real-data E2/E3/E4 runs and the selection lock remain to be executed
+- Current phase: Phase 2–4 implemented and run on real data; selection locked (58ddf70a4f14f5b0); final Test evaluation awaiting owner approval to open Test
 - Test partition openings: 0 (see `reports/final_eval/ledger.jsonl` once it exists)
 
 ## Phase status
@@ -48,8 +48,8 @@ Short handoff log. The plan lives in `docs/MASTER_PLAN.md`.
 - [x] Calibration (`models/calibrate.py`: FrozenEstimator calibrators, ECE, simpler-method rule), threshold/cost (`models/threshold.py`: Bayes check, sensitivity), E2/E3/E4 runners (`risklab e2|e3|e4`, configs declared in advance)
 - [x] Registry promotion gate, alias CLI with audit log, FastAPI (`/predict`, `/models/current`, `/health`, `/monitoring/evaluate`, admin reload), Dockerfile + docker-compose
 - [x] Monitoring: PSI/KS drift, labeled-batch performance, subgroup report with suppression, seeded batch simulator
-- [ ] Run E2/E3/E4 on real data with MLflow tracking, record run IDs in `docs/experiments.md`, then lock and run `final-eval` once (requires clean tree)
-- [ ] Calibrate monitoring alert thresholds on real control batches; run the rollback demo and Locust load test
+- [x] Run E2/E3/E4 on real data with MLflow tracking (runs cf726679…, 7296da8d…, b24c3fff… in `docs/experiments.md`); champion trained (calibration none, threshold 0.0839, served groups previous+installments) and selection locked as 58ddf70a4f14f5b0. `final-eval` still requires explicit owner approval because it opens Test
+- [x] Monitoring control check on real Monitoring pool: 0/10 alerts at score PSI 0.25 (indicative). Rollback demo and Locust load test remain open
 
 ## Decisions log
 
@@ -70,7 +70,7 @@ Short handoff log. The plan lives in `docs/MASTER_PLAN.md`.
 
 ## Open items
 
-- Confirm default policy to exclude `CODE_GENDER` from model features (decide in Phase 2 before the selection lock).
+- Policy analysis run (see `docs/experiments.md`): keep `CODE_GENDER` excluded; owner approval still required to ever include it.
 - Set `min_gain`, ECE binning, gate tolerances, and cost assumptions in config before the related experiments.
 
 ## Handoff notes
