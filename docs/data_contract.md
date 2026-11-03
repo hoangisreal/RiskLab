@@ -47,7 +47,7 @@ All time fields (`DAYS_*`, `MONTHS_BALANCE`) are relative to the application dat
 
 Ingest keeps every record: orphan rows and duplicate installment keys are present in the Parquet files (Parquet row counts equal CSV record counts). Nothing is filtered in Phase 0.
 
-Consequence for later phases: inner joins from bureau_balance to bureau, and from the three monthly tables to previous_application, would drop these rows silently. Orphan bureau_balance rows cannot be linked to any applicant, because bureau_balance has no `SK_ID_CURR`. Monthly-table orphans can still be keyed on `SK_ID_CURR` (present and consistent in those tables). How to handle each case, and how to report the excluded counts, is a Phase 1 validation decision.
+Contract 1.1 keeps attributable monthly/payment orphans under their own applicant and loan keys. Bureau-balance rows without a valid bureau parent cannot be attributed and do not enter features. Validation reports these counts explicitly, and conflicting loan ownership is fatal; there is no silent inner join through previous_application.
 
 The orphan and duplicate counts above were cross-checked on 2026-11-01 by an independent DuckDB pass over the raw CSVs (not the Parquet files); all counts matched.
 
@@ -62,7 +62,7 @@ Applicants without history (356,255 applications in total):
 ## Time fields and sentinels
 
 - `365243` is a sentinel (about 1000 years), not a real value.
-  - `DAYS_EMPLOYED`: 55,374 rows in train and 9,274 in test. `ORGANIZATION_TYPE = 'XNA'` has the same counts (55,374 / 9,274), which suggests the same rows (not verified row by row). TARGET prevalence is 5.40% for the sentinel rows and 8.66% for the others.
+  - `DAYS_EMPLOYED`: 55,374 rows in train and 9,274 in test. `ORGANIZATION_TYPE = 'XNA'` has the same counts (55,374 / 9,274), which suggests the same rows (not verified row by row). Historical pre-partition target associations included all labeled rows and are not used to justify the current cleaning/feature policy.
   - previous_application: `DAYS_FIRST_DRAWING` 934,444; `DAYS_FIRST_DUE` 40,645; `DAYS_LAST_DUE_1ST_VERSION` 93,864; `DAYS_LAST_DUE` 211,221; `DAYS_TERMINATION` 225,913.
 - Positive values (excluding the sentinel) in fields that describe realized events:
   - `bureau.DAYS_ENDDATE_FACT` > 0: 0. `installments_payments.DAYS_ENTRY_PAYMENT` > 0: 0. These are safe as "already happened" fields.
@@ -117,10 +117,10 @@ Defined in `configs/cleaning.yaml`, applied by `risklab.data.clean.clean_applica
 
 Rationale:
 
-- The sentinel and `XNA` mean "not applicable" (for example pensioners have no employment date), not a real value. As NULL they cannot distort ratios or scaling. The flag keeps the signal, because the sentinel group has a different default rate (see above).
+- The sentinel and `XNA` mean "not applicable" (for example pensioners have no employment date), not a real value. As NULL they cannot distort ratios or scaling. The flag preserves the semantic distinction between a sentinel and an ordinary missing observation. This rule does not require a target association or a statistic fitted across applicants.
 - The rules are strictly row-wise: each output value depends only on the same row, with no statistic computed across rows. Cleaning is therefore safe to run before partitioning without leakage. Rows are never dropped, added or reordered, and `SK_ID_CURR` and `TARGET` are passed through untouched. A unit test checks that cleaning the whole table equals cleaning its chunks separately.
 - The online (API) path reuses the same function on a single-row table.
-- Cleaned data is not yet wired into the loaders and no cleaned Parquet is written.
+- Partition loaders return raw role-gated rows; application/full feature builders apply this shared cleaning immediately afterward. No separate cleaned Parquet snapshot is required.
 
 ## Validation
 
@@ -147,3 +147,14 @@ Policy: `configs/features_application.yaml`; code: `risklab.features.application
 - Numeric vs categorical comes from the types in `raw_schema.yaml` only: `VARCHAR` is categorical, everything else numeric (plus the cleaning flag columns). Column order follows the schema. Numeric columns are float64 and categorical columns are object, with NaN for NULL, whichever values a given partition happens to contain.
 - Log-transformed (Logistic Regression only): numeric columns starting with `AMT_`, except the `AMT_REQ_CREDIT_BUREAU_*` enquiry counts. Negatives are clipped to 0 before `log1p`.
 - All statistics across applicants (medians, scaling, category sets) are learned inside the sklearn pipelines in `risklab.models.pipelines`, fitted on Train only.
+
+
+## Historical contract 1.1
+
+`configs/historical.yaml` defines applicant-local sentinel/category handling and required non-future event fields. Batch and online paths install the same cleaned views before executing the same feature SQL. Required missing realized-event dates are excluded: the accepted validation counts 2,905 installment rows with missing payment dates and zero future realized-event violations. Planned future end/due dates known at application time are not treated as realized events.
+
+`sql/validation/history.sql` checks parent/loan-month uniqueness, identical payment rows, installment due-date/amount consistency and cross-source loan ownership. The 653,483 excess installment-key rows are legitimate separate partial payments: they are summed per applicant/loan/version/number before comparing against the single due amount and last payment date. Real due-date/amount variations and exact payment duplicates are zero. Fatal key/ownership conflicts stop feature building, and cached validation cannot hide a changed raw/Parquet snapshot.
+
+Monthly/payment observations aggregate through individual loans to the applicant, giving each observed loan equal weight for loan-level means. Counts sum observed monthly records or consolidated installments. No-history counts are zero; other aggregates are NULL. Zero due/limit denominators yield NULL ratios. SUM/AVG inputs are explicitly ordered by value to keep results identical across row layout/thread scheduling; no rounding is used.
+
+Every feature is covered by hand-calculated fixtures, including no-history, partial payments, temporal exclusion, other-applicant isolation and exact floating-order stability. Full public-schema Train parity and the fresh reproduction verify actual feature values/probabilities. Historical validation is recorded in the experiment input manifests; current accepted run IDs are in experiments.md. The known Kaggle region-rating exception remains batch-only and is rejected by the public API.

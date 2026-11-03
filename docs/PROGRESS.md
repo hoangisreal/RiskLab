@@ -3,29 +3,29 @@
 Short handoff log. The plan lives in `docs/MASTER_PLAN.md`.
 
 - Last updated: 2026-11-03
-- Current phase: contract 1.1 accepted through Selection, strict real parity and Monitoring controls; independent reproduction and operational deployment verification in progress. The earlier contract-1.0 Test result is historical evidence only: lock e98453beb10d833e, recorded model run cf726679c64d467f8ed86c9837fa57d6. It does not evaluate the corrected contract.
+- Current phase: contract 1.1 accepted through Selection, strict real parity and Monitoring controls; independent reproduction, operational deployment, faults/rollback and load matrix verified; final Test approval pending. The earlier contract-1.0 Test result is historical evidence only: lock e98453beb10d833e, recorded model run cf726679c64d467f8ed86c9837fa57d6. It does not evaluate the corrected contract.
 - Test partition openings: 1 (lock e98453beb10d833e; see `reports/final_eval/ledger.jsonl`)
 
 ## Phase status
 
 | Phase | Status | Notes |
 |---|---|---|
-| 0. Foundations | Done | Fresh-copy check passed without real data; CI not yet run on GitHub |
+| 0. Foundations | Done | Fresh-copy setup and current branch CI pass on synthetic data |
 | 1. MVP | Done | E1 chosen model: LightGBM; later Test evaluation is recorded below |
-| 2. Portfolio-ready ML | Contract 1.1 through Selection/parity verified | Accepted E1/E2/policy/diagnostics/E3/E4 below; independent reproduction running; new Test requires explicit approval |
-| 3. Portfolio-ready serving | Synthetic chain verified; real operations pending | Strict bundle/profile, schema, reload, gate, rollback, limits and logs tested; clean commit precedes real registration |
-| 4. Advanced | Full-engine controls verified | 100 calibration / 100 held-out controls; real fault, rollback and concurrent load evidence still pending |
+| 2. Portfolio-ready ML | Contract 1.1 through Selection/parity verified | Accepted E1/E2/policy/diagnostics/E3/E4 below; independent reproduction passed; new Test requires explicit approval |
+| 3. Portfolio-ready serving | Real registry/API/rollback verified | Clean-commit bundle registration, real 500-payload golden check and audited rollback passed |
+| 4. Advanced | Full-engine controls verified | 100 calibration / 100 held-out controls; real faults/rollback/subgroups/load verified; mild shift missed and latency target unmet, both disclosed |
 | 5. Optional | Not planned | Only on concrete need |
 
 ## Next actions (Phase 0)
 
 - [x] Project skeleton: `pyproject.toml`, `uv.lock`, ruff, mypy, pytest markers, pre-commit, Makefile, `.gitignore`, `.env.example`
-- [ ] Pin library versions and recheck against current docs (sklearn `FrozenEstimator`, MLflow allowed-hosts, LightGBM 4.x). Deferred: these libraries are added in Phase 1–3.
+- [x] Library versions pinned in uv.lock; FrozenEstimator, MLflow allowed-hosts and LightGBM deterministic settings checked against current official docs.
 - [x] Typer CLI skeleton and pydantic config loading
 - [x] `risklab ingest`: CSV → Parquet with explicit types, data manifest (real data: 17s, peak RSS ~2.0 GiB, row counts match)
 - [x] Shared run-manifest utility
 - [x] Synthetic data generator for all eight raw tables (`src/risklab/synthetic.py`)
-- [x] CI workflow on synthetic data (not yet run on GitHub; action pins are major tags, SHA pinning pending)
+- [x] CI workflow on synthetic data; upstream action SHAs pinned and current review branch CI passes
 - [x] `docs/data_contract.md` draft (numbers from `scripts/raw_anomalies.py`)
 
 ## Phase 1 tasks
@@ -42,7 +42,7 @@ Short handoff log. The plan lives in `docs/MASTER_PLAN.md`.
 - [x] EDA report on Train only (`scripts/eda_application.py`, written to `reports/eda/`, not committed). Notebook replaced by a script so the report is reproducible and Train-only by construction
 
 
-## Phase 2–4 implementation and recorded runs
+## Historical contract-1.0 implementation and runs
 
 - [x] Historical validation (`risklab validate-history`), feature SQL for all six history groups plus application ratios (`sql/features/`), registry `configs/features.yaml`, batch build (`risklab features`) and online parity path sharing the same SQL and cleaning code
 - [x] Calibration (`models/calibrate.py`: FrozenEstimator calibrators, ECE, simpler-method rule), threshold/cost (`models/threshold.py`: Bayes check, sensitivity), E2/E3/E4 runners (`risklab e2|e3|e4`, configs declared in advance)
@@ -70,18 +70,18 @@ Short handoff log. The plan lives in `docs/MASTER_PLAN.md`.
 
 ## Open items
 
-- Policy analysis run (see `docs/experiments.md`): keep `CODE_GENDER` excluded; owner approval still required to ever include it.
-- New gate, serving-validation, verification and final-report settings are explicit YAML configs. Legacy artifacts remain unchanged; contract-1.1 decisions and threshold will come from separately tracked Selection experiments.
+- Policy analysis is complete (docs/experiments.md): keep CODE_GENDER excluded; inclusion still requires owner approval.
+- New gate, serving-validation, verification and final-report settings are explicit YAML configs. Legacy artifacts remain unchanged; contract-1.1 decisions and threshold come from the separately tracked Selection experiments below.
 
 ## Handoff notes
 
 - Phase 0 verified in a clean copy without `data/`: `uv sync --locked`, ruff, mypy, 63 tests pass; `data` tests skip.
 - Ingest atomicity: all tables are staged and verified before any file is replaced. Remaining narrow window: a crash during the final file swaps or the manifest write can leave the manifest stale; the next partial ingest detects this by hash, and a full ingest repairs it.
 - Parquet files are not byte-reproducible (`preserve_insertion_order=false`); raw SHA256 and row counts are the exact references.
-- Raw data issues to resolve in Phase 1 validation (see `docs/data_contract.md`): orphan `SK_ID_BUREAU` / `SK_ID_PREV` rows, 653,483 duplicate installment keys, `365243` sentinels.
+- Historical raw-data issues are handled in contract 1.1: orphan attribution is explicit, the 653,483 excess installment-key rows are partial payments, and configured sentinels are cleaned. See data_contract.md.
 - MASTER_PLAN 7.1 revised: `MONTHS_BALANCE = 0` (snapshot at application) is allowed.
-- Pre-API items from the pipelines review (do in Phase 3, before the API contract): (1) `CODE_GENDER` is a `category_to_null` cleaning rule column, so `clean_application` requires it even though it is excluded as a feature; the API should not have to collect gender just to clean. (2) The Arrow-to-pandas conversion (float64 casts, None→NaN in object columns, column order) lives inside `load_application_frame`; factor it into a shared `frame_from_table` used by batch and online paths, with a parity test, because `OneHotEncoder` treats `None` and `NaN` as different missing values.
-- Data-contract statistics such as TARGET prevalence of sentinel rows (5.40% vs 8.66%) were computed over all of `application_train`, including Test rows. They are context only. EDA and any modelling decision must use `load_partition("train", "fit")`.
+- Resolved pre-API review items (shared conversion/cleaning now implemented): (1) `CODE_GENDER` is a `category_to_null` cleaning rule column, so `clean_application` requires it even though it is excluded as a feature; the API should not have to collect gender just to clean. (2) The Arrow-to-pandas conversion (float64 casts, None→NaN in object columns, column order) lives inside `load_application_frame`; factor it into a shared `frame_from_table` used by batch and online paths, with a parity test, because `OneHotEncoder` treats `None` and `NaN` as different missing values.
+- Historical pre-partition target associations included all of `application_train`, including Test rows. They do not justify the current cleaning/feature policy. EDA and any modelling decision must use `load_partition("train", "fit")`.
 
 ## Review corrections (2026-11-03)
 
@@ -96,13 +96,11 @@ Short handoff log. The plan lives in `docs/MASTER_PLAN.md`.
 - Threshold decision: missing-rate alert = 0.20, declared in monitoring.yaml before new simulations; existing PSI/KS and promotion tolerances retained. Old 0/10 control results describe score PSI only and do not establish the false-alarm rate of the complete corrected engine.
 - Verification: regression tests and complete synthetic registry/serving checks are run as part of this change; see the final check record below. GitHub CI and a fresh real-data compose deployment still need operational verification after commit.
 
-### Remaining evidence gaps
+### Earlier evidence gaps
 
-- Real-data leave-one-group-out, repeated model-family comparison on the served set, and historical-feature leakage diagnostics have not been rerun. New analyses must remain on Train/Selection and must not use the stored Test metrics to choose changes.
-- Full-engine false-alarm calibration and realistic concurrent/full-history load tests remain pending. The historical load result is a sequential baseline.
-- Fresh real-data registration with the stricter bundle format requires a clean committed checkout; no live registry aliases were changed during the corrections.
+Served-set E1/leave-one-out/history diagnostics, full-engine controls, real strict-bundle deployment, rollback and load checks were pending at the earlier correction snapshot. They are now verified in the accepted completion evidence below. New Test evidence remains approval-dependent.
 
-### Final check record (2026-11-03)
+### Earlier correction check record (2026-11-03)
 
 - `make test`: ruff, format and mypy passed; 318 non-data tests passed. After adding the last lock/isolation guards and forwarding reporting settings, the focused regression suite passed all 34 tests (including the nine additional non-data cases).
 - `pytest tests/data/test_real_parity.py -m data`: passed on the final Arrow-based request extraction, checking all feature values and probabilities for 500 seeded Train applicants.
@@ -138,6 +136,18 @@ Short handoff log. The plan lives in `docs/MASTER_PLAN.md`.
 - Candidate preparation reproduced all E3 Selection metrics exactly under the strict 1e-9 tolerance, and public-schema feature/probability parity passed on 500 seeded Train applicants. Historical SQL hand fixtures additionally test row-order/thread stability; Test remains untouched.
 - Full-engine controls run `03b14e0ed97c43a48aaaa067ca7eba19`: scale 1.0, 1/100 calibration alerts and 0/100 held-out alerts, below the configured target. The policy is bound to model/profile/config hashes. The batches share a static pool and can overlap.
 - Latest complete synthetic suite: 369 passed, 9 data tests deselected; lint/format/mypy and diff checks pass. One earlier scanner failure misidentified the unlabeled Kaggle filename as the Test role file; the exact-name distinction now has a regression test. Starlette emits one upstream testclient deprecation warning; tests still pass using the existing dependency set.
-- Nine corrected aggregate reference files were exported separately under `reports/reference/contract-1.1/`. The earlier references remain untouched. An independent, disk-backed image reproduction is running under `reports/workspaces/reproduction-contract-1.1`, including per-feature comparison against the ordered Train baseline.
+- Nine corrected aggregate reference files were exported separately under `reports/reference/contract-1.1/`. The earlier references remain untouched. The independent, disk-backed image reproduction under `reports/workspaces/reproduction-contract-1.1` passed, including per-feature comparison against the ordered Train baseline (run below).
 
 - D17 (before the behavioral probe): test the frozen model's mean response on a seeded Train sample by changing each normalized EXT_SOURCE input from 0.2 to 0.8 while holding other inputs fixed. The expected direction is lower mean risk; this is a descriptive diagnostic, not a model-selection or monotonicity constraint. No refit or new feature decision follows it.
+
+
+### Operational completion evidence
+
+- Independent reproduction run `c3a42f2254144abf9d470f3495e13345` passed all nine aggregate references and exact value/missing-mask equality for all seven Train feature tables. The fresh artifact SHA256 is identical; fresh E3 run `4322585f9c1140c789cb0950bec06101`. No Test or alias change occurs in reproduction.
+- All accepted E1/E2/E1-served/E3/policy metrics recompute with plain scikit-learn within 1e-9; each originating run has its independent check artifact. Frozen-model Train-only directional tests pass without refitting.
+- Clean source commit `1e6624c` produced operational lock `f7107d92f1159055` and version 4 (registration run `409c012818844b38a980658db22f12b3`). Actual HTTP golden run `6fa54cc59a9043ba85f8982149f46fc3` checked 500 Train payloads, max absolute probability difference 0, threshold/recommendation identity and an explanation. Runtime metadata/schema/profile checks pass.
+- Scenario-summary run `f1d5df3f91014aaebe595dfaab7ed6b3` detects all three upstream bugs, strong age shift and label-only shift; mild age shift is missed and disclosed. The real Kaggle batch is unlabeled and returns no performance section. Monitoring.md records source runs and subgroup CIs/weaknesses.
+- One-command rollback run `1f82bddd7d374a7181a57445f65c9bc9` blocks diagnostic v5, force-promotes with an audited reason, detects the regression, restores v4 via CLI/API reload and shows both models degrade under shared concept shift. Diagnostic cards carry their own artifact/metric identity. The legacy model and one-entry Test journal hashes are unchanged.
+- Load runs `666d3ba6f62541efa8892ddf68aa64d8` (one worker) and `2e384c5b561f4186ada07a39bac466ed` (four workers) have 0/200 errors in each empty/full-history case at concurrency eight. Single-client diagnostic `41cc517ba01145b38cf4893d372abb1b` also has no errors. The indicative 100 ms target is unmet; measured figures and hardware are published without a production SLO claim. Serving returns to one worker.
+- Final `make test`: lint/format/mypy pass; 373 synthetic tests pass, ten data tests deselected, one upstream Starlette testclient deprecation warning. This includes failure-preserving reload guards for unknown source groups and label/identifier inputs. The final train/API images build successfully. Current private review and revision checks: https://github.com/hoangisreal/RiskLab/pull/1. Final deployment identity and CI links are retained locally in `reports/operations/final-deployment.json` and attached to the registration run, avoiding a documentation commit that would invalidate its clean-revision lock.
+- Remaining owner decision: one explicitly authorized, disclosed Test reuse for a final clean-revision lock of the already frozen artifact. No model/feature/calibration/threshold decision remains to be made. Optional Phase 5 infrastructure remains out of scope.

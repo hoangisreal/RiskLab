@@ -47,4 +47,43 @@ Reload is an in-process operation. Use one worker for the rollback exercise; a m
 
 ## Evidence status
 
-The corrected engine, controls protocol and rollback/load commands are implemented. Contract-1.1 real-data experiments and operational verification are in progress; consult `PROGRESS.md` and the completion audit for completed checks. Historical untracked rollback/load figures are not presented as evidence for this implementation. Labels are immediately available in these simulations; delayed production-label workflows remain outside this demo.
+The corrected engine, controls, real scenarios, rollback exercise and load matrix are verified below. Historical untracked rollback/load figures are not presented as evidence for this implementation. Labels are immediately available in these simulations; delayed production-label workflows remain outside this demo. New contract-1.1 Test evidence remains approval-dependent.
+
+## Accepted real operational evidence
+
+Scenario-summary run `f1d5df3f91014aaebe595dfaab7ed6b3` evaluates pinned version 4 on seeded 2,000-row batches. The ordinary control has no alert (run `33a3e767bd284070929c04106f841cd6`). Mild age resampling is missed at the declared thresholds (run `fd049569028b4136aebcf66a44e05862`); this is the observed detection limit, not a reason to tune on the validation batch. Strong age shift alerts on age/employment/income features (run `1272da87f37c4f1f805fc21ffd4b9940`).
+
+| Injected condition | Detected signal | Source run |
+|---|---|---|
+| Income ×1000 | Income and all affected income-ratio features | `ea41af7ca049477ea5554b7face0e749` |
+| 60% EXT_SOURCE_3 missing injection | EXT_SOURCE_3 missingness/distribution | `f2f42cacb5604298a7d5504dcbd3d969` |
+| Income category renamed | NAME_INCOME_TYPE distribution | `33b4f72b3a3e4cc8a98965cd777b634a` |
+| 10% label flips | AUC/log-loss/Brier regression; no feature/score drift alert | `3b6813c849f6470bb7444119302e3b9e` |
+| Real unlabeled Kaggle sample | Bureau/request-count feature differences; no performance section | `4e8589d56a9d4a2681d5fc3dd671e760` |
+
+Subgroup examples from control run `33a3e767bd284070929c04106f841cd6`:
+
+| Group | Rows / positives | AUC [95% CI] | FNR [95% CI] |
+|---|---|---|---|
+| Pensioner | 355 / 20 | 0.632 [0.536, 0.714] | 0.800 [0.619, 0.956] |
+| Age 55–65 | 387 / 26 | 0.657 [0.545, 0.756] | 0.654 [0.462, 0.838] |
+| Male | 689 / 66 | 0.748 [0.679, 0.817] | 0.273 [0.170, 0.388] |
+
+These overlapping groups have wide uncertainty and multiple comparisons. They identify descriptive weaknesses, especially recall among the observed pensioners/older applicants; they do not authorize a group-specific threshold or establish discrimination.
+
+The one-command rollback run `1f82bddd7d374a7181a57445f65c9bc9` blocked diagnostic version 5, force-promoted it with the declared reason, detected its regression and restored version 4 through CLI rollback/API reload. Control AUC was 0.76774 for version 4 (run `26b435bb3c2042c09f45cab78cebcbbf`) and 0.48387 for version 5 (run `70301bd4a0dd422a8d336d009d3475a4`). On shared concept shift, both degraded and alerted: AUC 0.61169/0.49064 (runs `6ec9f4f1ca834623bc3a935083f5245d` / `8bdb57ccfaf04b22b946aaa6767af11d`). The API and alias returned to version 4; the Test journal was unchanged.
+
+## Measured load and limits
+
+The declared concurrency-eight matrix uses 200 measured requests/case, 20 excluded warmups, a 2,258-byte empty-history payload and an 11,442-byte full-history payload (4 bureau, 3 previous, 26 payment records). The host has 16 logical CPUs and approximately 15.3 GiB RAM; the API uses the pinned Linux/Python image. Other host activity can affect these local observations.
+
+| Workers | Payload | p50 / p95 / p99, ms | Throughput, req/s | Errors |
+|---|---|---|---:|---:|
+| 1 | Empty history | 714.8 / 834.3 / 898.4 | 11.10 | 0/200 |
+| 1 | Full history | 726.2 / 859.3 / 876.6 | 10.86 | 0/200 |
+| 4 | Empty history | 247.9 / 351.9 / 971.5 | 29.28 | 0/200 |
+| 4 | Full history | 279.6 / 351.3 / 411.1 | 29.94 | 0/200 |
+
+Source load runs: one worker `666d3ba6f62541efa8892ddf68aa64d8`; four workers `2e384c5b561f4186ada07a39bac466ed`. All responses retained the pinned version. The API was restored to one worker after the matrix.
+
+A separately labeled single-client diagnostic used the same payloads/model: empty-history p95 115.4 ms and full-history p95 131.0 ms, with 0/200 errors each (run `41cc517ba01145b38cf4893d372abb1b`). The indicative 100 ms target is not met, even without concurrent load. Four workers improve throughput, but no production latency guarantee is claimed. Per-request feature construction and model preprocessing remain a performance limit; changing the evaluated artifact or expanding infrastructure to hide that result is outside this evidence.

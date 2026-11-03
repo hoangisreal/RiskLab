@@ -58,8 +58,14 @@ def validate_serving_config(
     expected_contract: str,
     model: Any | None = None,
 ) -> None:
+    from risklab.features.online import GROUP_SOURCE
+
     if config.contract_version != expected_contract:
         raise ValueError("model contract does not match the API contract")
+    if set(config.feature_groups) - set(GROUP_SOURCE):
+        raise ValueError("model declares an unknown or unimplemented feature group")
+    if any(name == "TARGET" or name.startswith("SK_ID_") for name in config.feature_columns):
+        raise ValueError("model inputs cannot contain applicant/loan identifiers or labels")
     current = library_versions()
     if config.library_versions != current or any(v is None for v in current.values()):
         raise ValueError("model library versions do not match this runtime")

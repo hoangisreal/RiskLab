@@ -22,7 +22,7 @@ Follow [Deployment](docs/deployment.md) for clean-tree locking, registration, ga
 
 ## Evidence and review
 
-Contract 1.1 corrects historical aggregation and floating-point reproducibility, validates the public raw-record schema, and packages immutable model/reference artifacts. Its real-data verification is being completed; [Progress](docs/PROGRESS.md) and the [completion audit](docs/COMPLETION_AUDIT.md) distinguish completed checks from remaining evidence. Historical contract-1.0 Test results do not evaluate the corrected artifact.
+Contract 1.1 corrects historical aggregation and floating-point reproducibility, validates the public raw-record schema, and packages immutable model/reference artifacts. Its real-data Selection, exact reproduction, public API parity, monitoring and rollback checks pass. [Progress](docs/PROGRESS.md) and the [completion audit](docs/COMPLETION_AUDIT.md) record the evidence and the remaining explicit Test-approval step. Historical contract-1.0 Test results do not evaluate the corrected artifact.
 
 - [Model comparisons and decisions](docs/experiments.md)
 - [Model card](docs/model_card.md) and [limitations](docs/limitations.md)

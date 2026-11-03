@@ -82,7 +82,7 @@ def test_reload_changes_current_and_failed_reload_keeps_it(monkeypatch, bundle):
     assert store.current.model is model
 
 
-@pytest.mark.parametrize("change", ["contract", "versions", "columns", "parity"])
+@pytest.mark.parametrize("change", ["contract", "versions", "columns", "parity", "groups", "label"])
 def test_registry_load_rejects_bad_bundle_without_swap(monkeypatch, bundle, change):
     import mlflow.sklearn
 
@@ -94,7 +94,12 @@ def test_registry_load_rejects_bad_bundle_without_swap(monkeypatch, bundle, chan
         bundle.library_versions = {**bundle.library_versions, "lightgbm": "wrong"}
     elif change == "parity":
         bundle.parity = {**bundle.parity, "model_sha256": "wrong"}
-    columns = ["wrong"] if change == "columns" else ["AMT_CREDIT"]
+    elif change == "groups":
+        bundle.feature_groups = ["unimplemented"]
+    elif change == "label":
+        bundle.feature_columns = ["TARGET"]
+        bundle.parity = {**bundle.parity, "feature_columns": ["TARGET"]}
+    columns = ["wrong"] if change == "columns" else list(bundle.feature_columns)
     monkeypatch.setattr(client, "resolve_champion", lambda: {"version": "2", "run_id": "new-run"})
     monkeypatch.setattr(client, "read_serving_config", lambda info: bundle)
     monkeypatch.setattr(client, "read_reference_profile", lambda *args: None)
