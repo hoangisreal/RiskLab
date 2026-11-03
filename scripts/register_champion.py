@@ -12,7 +12,6 @@ from pathlib import Path
 
 import mlflow
 import mlflow.sklearn
-import numpy as np
 
 from risklab.registry.audit import append_audit
 from risklab.registry.client import MODEL_NAME, set_alias
@@ -27,9 +26,13 @@ def main() -> None:
     e3 = json.loads((reports / "experiments" / "e3" / "summary.json").read_text(encoding="utf-8"))
     metrics = e3["selection"]["metrics"][serving["calibration_method"]]
     gate = promotion_gate(
-        metrics, None,
+        metrics,
+        None,
         ece=float(e3["selection"]["ece"][serving["calibration_method"]]),
-        contract_valid=True, parity_passed=True, versions_match=True, lock_present=True,
+        contract_valid=True,
+        parity_passed=True,
+        versions_match=True,
+        lock_present=True,
     )
     print("gate:", gate)
     if not gate["passed"]:
@@ -58,12 +61,18 @@ def main() -> None:
     client = MlflowClient()
     versions = client.search_model_versions(f"name='{MODEL_NAME}' and run_id='{run_id}'")
     version = str(versions[0].version)
-    client.set_model_version_tag(MODEL_NAME, version, "contract_version", serving["contract_version"])
+    client.set_model_version_tag(
+        MODEL_NAME, version, "contract_version", serving["contract_version"]
+    )
     client.set_model_version_tag(MODEL_NAME, version, "gate_status", "passed")
     set_alias(version, "champion")
     append_audit(
-        reports / "registry_audit.jsonl", action="promote", from_version=None,
-        to_version=version, actor="register_champion", reason="first registration, gate passed",
+        reports / "registry_audit.jsonl",
+        action="promote",
+        from_version=None,
+        to_version=version,
+        actor="register_champion",
+        reason="first registration, gate passed",
     )
     print(f"registered {MODEL_NAME} version {version} (run {run_id}) -> @champion")
 
