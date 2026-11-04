@@ -59,3 +59,29 @@ def test_control_seeds_cannot_overlap():
             cfg.model_dump() | {"validation_control_seed": cfg.calibration_control_seed}
         )
     assert scaled_config(cfg, 2).ks_alert == cfg.ks_alert * 2
+
+
+def test_sub_one_alert_scales_tighten_thresholds():
+    # D19: scales below 1 are valid candidates and tighten every scaled alert.
+    # The shipped config keeps [1.0, ...] so the frozen registry bundle stays
+    # protocol-compatible; sub-1 candidates are adopted only with a new bundle.
+    base = load_model(CONFIG_DIR, "monitoring.yaml", MonitoringConfig)
+    cfg = MonitoringConfig.model_validate(
+        base.model_dump() | {"alert_scale_candidates": [0.5, 0.75, 1.0]}
+    )
+    tightened = scaled_config(cfg, 0.5)
+    assert tightened.psi_alert == cfg.psi_alert * 0.5
+    assert tightened.performance_auc_drop == cfg.performance_auc_drop * 0.5
+    policy = AlertPolicy(
+        model_sha256="a" * 64,
+        profile_hash="b" * 64,
+        config_hash="c" * 64,
+        scale=0.75,
+        run_id="synthetic-control-run",
+        calibration_batches=100,
+        validation_batches=100,
+        calibration_false_alarm_rate=0.03,
+        validation_false_alarm_rate=0.04,
+        passed=True,
+    )
+    assert policy.scale == 0.75

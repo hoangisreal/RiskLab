@@ -74,9 +74,9 @@ class MonitoringConfig(_Strict):
         if (
             not self.alert_scale_candidates
             or self.alert_scale_candidates != sorted(set(self.alert_scale_candidates))
-            or min(self.alert_scale_candidates) < 1
+            or min(self.alert_scale_candidates) <= 0
         ):
-            raise ValueError("alert scales must be unique, increasing and at least one")
+            raise ValueError("alert scales must be unique, increasing and positive")
         return self
 
 

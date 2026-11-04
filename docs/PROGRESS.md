@@ -40,6 +40,29 @@ registry v6 under lock `402b9e050159762d`. Details: `docs/RESULTS.md` §4–§5,
   recorded reuse acknowledgment before the read (D18).
 - Phase 5 infrastructure is out of scope unless a concrete need appears.
 
+## Development directions (2026-11-04 review follow-up)
+
+- Direction 1 (commit + re-prove): done. Docs restructure committed as
+  `97797e5`, clean-clone `make test` equivalent passed (380 tests),
+  `risklab verify` 9/9 references OK, CI success for that commit.
+- Direction 2 (mild-shift sensitivity): probed under D19. Scale 0.5
+  qualifies (run `f0dafdc48e374218a9267492c291d786`) and detects the mild
+  shift (run `cfbe4b583c9b4ee19fb790f2ac657c66`), but is **not adopted**:
+  adopting needs a full protocol rerun + new lock/registration and would
+  detach serving from lock `402b9e050159762d`'s Test evidence. Owner
+  decision required (`docs/DECISIONS.md` D19).
+- Direction 3 (latency): profiled and recorded in `docs/OPERATIONS.md` §5.
+  Bottleneck is per-request DuckDB SQL planning (~62 ms of ~79 ms
+  `prepare_input`); SQL texts now cached per process. The 100 ms
+  concurrency target remains unmet and disclosed; no SLO adopted.
+- Direction 4 (subgroups): Selection replication recorded in
+  `docs/RESULTS.md` §5 — age FPR/FNR pattern is a base-rate/global-
+  threshold trade-off, not per-band mis-calibration. No threshold change;
+  group-specific thresholds need owner + legal review and a new lock.
+- Directions 5–7 (production hardening, new-data program, gender/extra
+  sources, Phase-5 nice-to-haves): gated on owner/legal approval or new
+  data; not started. Web dashboard remains a Phase-5 option (D1).
+
 ## Handoff notes for the next agent
 
 - If this file disagrees with the code, the code wins; update this file.

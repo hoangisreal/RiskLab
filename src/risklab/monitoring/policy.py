@@ -27,7 +27,7 @@ class AlertPolicy(_Strict):
     model_sha256: str
     profile_hash: str
     config_hash: str
-    scale: float = Field(ge=1)
+    scale: float = Field(gt=0)
     run_id: str
     calibration_batches: int = Field(ge=1)
     validation_batches: int = Field(ge=1)

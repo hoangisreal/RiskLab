@@ -113,6 +113,15 @@ docker compose run --rm train registry rollback --version PREVIOUS_VERSION --rea
   exercise, run `1f82bddd7d374a7181a57445f65c9bc9`).
 - Load: 200 measured requests/case, concurrency 8, 1/4 workers (runs in
   `docs/RESULTS.md` §7). The 100 ms p95 target is unmet; no SLO is claimed.
+  Stage profile (host, single request, representative Train payload,
+  no explanation, 30 repeats): `prepare_input` ≈ 79 ms median of which
+  online DuckDB feature SQL ≈ 62 ms (group SQL ≈ 42 ms, history views
+  ≈ 7 ms, connection ≈ 1 ms, rest cleaning/assembly), `predict_proba`
+  ≈ 19 ms, total ≈ 99 ms. Empty history costs the same — the bottleneck is
+  per-request DuckDB planning/setup, not history size, and it cannot be
+  removed without breaking batch/online SQL parity. SQL texts are cached
+  per process (`features/build.py`); concurrency latency is CPU contention
+  (4 workers: p95 351 ms vs 859 ms at 1 worker in the recorded matrix).
 
 ## 6. Verify and reproduce (never opens Test, never moves aliases)
 

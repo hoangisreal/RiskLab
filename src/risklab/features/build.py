@@ -8,6 +8,7 @@ computed in SQL: each query aggregates only one applicant's own history rows.
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
+from functools import lru_cache
 from pathlib import Path
 
 import duckdb
@@ -29,11 +30,18 @@ class FeatureBuildError(Exception):
     """Raised when a feature group cannot be built."""
 
 
+@lru_cache(maxsize=64)
+def _read_sql(path: str) -> str:
+    # SQL files are static inputs within a process (serving and batch runs);
+    # caching the text avoids a disk read per group per online request.
+    return Path(path).read_text(encoding="utf-8")
+
+
 def _sql_for_group(group: str, registry: FeatureRegistry, root: Path) -> str:
     path = root / registry.groups[group].source_sql
     if not path.is_file():
         raise FeatureBuildError(f"feature SQL not found: {path}")
-    return path.read_text(encoding="utf-8")
+    return _read_sql(str(path))
 
 
 def run_group_sql(con: duckdb.DuckDBPyConnection, sql: str) -> pa.Table:

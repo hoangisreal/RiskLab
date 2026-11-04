@@ -119,6 +119,18 @@ weaknesses: young applicants (AUC 0.738 [0.705, 0.772], FPR 0.512),
 pensioner/older recall (FNR 0.539 / 0.667). No causal or fairness claim; no
 decision followed. Full table: `docs/model_card.md`.
 
+Selection replication (descriptive, E3 predictions run
+`9a84a8cc279846e88b110f06ee3ea69c`, same frozen artifact/threshold): the
+age pattern is already present where decisions may look. Base rate falls
+monotonically with age (≤25: 0.119 → 65+: 0.034) and mean predicted
+probability tracks it closely per band (0.121 → 0.036), so the global
+threshold mechanically produces FPR 0.521 / FNR 0.176 at ≤25 and FPR
+0.071 / FNR 0.692 at 65+ (pensioner FNR 0.521); within-band AUC stays
+0.731–0.787. This is a base-rate/threshold trade-off, not per-band
+mis-calibration. Any group-specific threshold is a policy/fairness
+decision requiring owner + legal review and a new lock (standing policies
+in `docs/DECISIONS.md`); none is adopted.
+
 Historical contract-1.0 (immutable, does not evaluate contract 1.1): lock
 `e98453beb10d833e`, model run `cf726679c64d467f8ed86c9837fa57d6`, ROC-AUC
 0.77320, PR-AUC 0.25114, Brier 0.06735, log loss 0.24260; no CIs/subgroups —
