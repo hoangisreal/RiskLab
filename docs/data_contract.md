@@ -1,6 +1,6 @@
-# Data contract (DRAFT)
+# Data contract
 
-Draft status: counts below were computed once from the real Parquet files. Formal, automated validation is Phase 1 (`validate`). Nothing here is a tested guarantee yet.
+Status: accepted. Counts below were computed once from the real Parquet files; automated enforcement is implemented in `risklab validate` / `validate-history` (see §Validation). Treat code + configs as the executable contract; this file explains them.
 
 Sources of the numbers:
 
@@ -142,7 +142,7 @@ Accepted row: `SK_ID_CURR` 224393 in `application_test`, check `range:region_rat
 Policy: `configs/features_application.yaml`; code: `risklab.features.application`.
 
 - Rows: `load_application_frame(role, purpose)` reads a partition only through `load_partition` (never Test), applies `clean_application`, drops the excluded columns and returns X and y indexed by `SK_ID_CURR`.
-- Excluded from X: `SK_ID_CURR` (identifier), `TARGET` (label) and `CODE_GENDER`. Excluding `CODE_GENDER` is the default policy while the owner decision on gender as a model input is open (see `docs/PROGRESS.md`). Changing the list changes every downstream result.
+- Excluded from X: `SK_ID_CURR` (identifier), `TARGET` (label) and `CODE_GENDER`. Excluding `CODE_GENDER` is the default policy; including it requires explicit owner approval (see `docs/DECISIONS.md`). Changing the list changes every downstream result.
 - Cleaning before modelling: the rules above. `DAYS_EMPLOYED` sentinel and `XNA` become NULL (NaN in X) and `DAYS_EMPLOYED_IS_SENTINEL` is added as a numeric column.
 - Numeric vs categorical comes from the types in `raw_schema.yaml` only: `VARCHAR` is categorical, everything else numeric (plus the cleaning flag columns). Column order follows the schema. Numeric columns are float64 and categorical columns are object, with NaN for NULL, whichever values a given partition happens to contain.
 - Log-transformed (Logistic Regression only): numeric columns starting with `AMT_`, except the `AMT_REQ_CREDIT_BUREAU_*` enquiry counts. Negatives are clipped to 0 before `log1p`.
@@ -157,4 +157,4 @@ Policy: `configs/features_application.yaml`; code: `risklab.features.application
 
 Monthly/payment observations aggregate through individual loans to the applicant, giving each observed loan equal weight for loan-level means. Counts sum observed monthly records or consolidated installments. No-history counts are zero; other aggregates are NULL. Zero due/limit denominators yield NULL ratios. SUM/AVG inputs are explicitly ordered by value to keep results identical across row layout/thread scheduling; no rounding is used.
 
-Every feature is covered by hand-calculated fixtures, including no-history, partial payments, temporal exclusion, other-applicant isolation and exact floating-order stability. Full public-schema Train parity and the fresh reproduction verify actual feature values/probabilities. Historical validation is recorded in the experiment input manifests; current accepted run IDs are in experiments.md. The known Kaggle region-rating exception remains batch-only and is rejected by the public API.
+Every feature is covered by hand-calculated fixtures, including no-history, partial payments, temporal exclusion, other-applicant isolation and exact floating-order stability. Full public-schema Train parity and the fresh reproduction verify actual feature values/probabilities. Historical validation is recorded in the experiment input manifests; current accepted run IDs are in `docs/RESULTS.md`. The known Kaggle region-rating exception remains batch-only and is rejected by the public API.

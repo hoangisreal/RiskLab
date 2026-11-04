@@ -12,7 +12,7 @@ Gender is excluded. Age is retained under the declared policy; sensitive-attribu
 
 ## Selection evidence
 
-Repeated-family comparison run `2b1c9ef2f9f94984bb0900c54ec96887` prefers LightGBM over LR: ROC-AUC gain 0.013154, 95% paired CI [0.009109, 0.017429], exceeding the predeclared 0.005 minimum. Source-specific model runs are listed in [Experiments](experiments.md).
+Repeated-family comparison run `2b1c9ef2f9f94984bb0900c54ec96887` prefers LightGBM over LR: ROC-AUC gain 0.013154, 95% paired CI [0.009109, 0.017429], exceeding the predeclared 0.005 minimum. Source-specific model runs are listed in [Results](RESULTS.md).
 
 | Current artifact, Selection | Value |
 |---|---:|
@@ -60,12 +60,12 @@ External scores provide substantial signal and cannot be independently inspected
 
 Monitoring uses a Train-fitted immutable aggregate profile and Selection score/performance reference. Control calibration run `03b14e0ed97c43a48aaaa067ca7eba19` measured 0/100 held-out alerts at the frozen scale after 1/100 calibration alerts. Static batches can overlap; this does not guarantee a production false-alarm rate. Rollback addresses a model regression; shared data/concept drift can affect both versions. Labels are immediate in this simulation, unlike production delay.
 
-The bundle exposes lock/run/artifact/runtime identity, frozen assumptions and parity evidence. Synthetic deployment tests verify exact registered predictions, reload failure safety and rollback validation. Latest real deployment/reproduction/load evidence is tracked separately in [Progress](PROGRESS.md) and [Monitoring](monitoring.md). Production gaps include authentication beyond an admin key, encryption/governance, coordinated multi-worker deployment, live monitoring/on-call and independent validation.
+The bundle exposes lock/run/artifact/runtime identity, frozen assumptions and parity evidence. Synthetic deployment tests verify exact registered predictions, reload failure safety and rollback validation. Latest real deployment/reproduction/load evidence is tracked separately in [Results](RESULTS.md) and [Operations](OPERATIONS.md). Production gaps include authentication beyond an admin key, encryption/governance, coordinated multi-worker deployment, live monitoring/on-call and independent validation.
 
 ## Operational verification
 
 Fresh reproduction run `c3a42f2254144abf9d470f3495e13345` regenerates identical feature values and the identical artifact hash. Actual HTTP verification run `6fa54cc59a9043ba85f8982149f46fc3` checks 500 seeded Train payloads against the registered artifact with maximum absolute probability difference 0, including the frozen threshold/recommendation and an explanation check. Operational registration run `409c012818844b38a980658db22f12b3` established the proof as version 4. Final registration run `28cfaf15adec482d98b12516a4744f2f` serves the identical artifact as version 6 under evaluated lock `402b9e050159762d`. Later changes expose cached aggregate evaluation metadata and update documentation; predictive protocol, artifact and lock remain unchanged.
 
-The controlled rollback exercise completed in run `1f82bddd7d374a7181a57445f65c9bc9`, including gate blocking, audited force promotion, detection, API restoration and the both-version concept-shift case. Mild covariate shift was missed at the declared thresholds; current monitoring evidence and subgroup uncertainty are reported in monitoring.md. Pensioner/older control subgroups have weaker observed discrimination/recall with broad intervals (control run `33a3e767bd284070929c04106f841cd6`), not a causal or fairness conclusion.
+The controlled rollback exercise completed in run `1f82bddd7d374a7181a57445f65c9bc9`, including gate blocking, audited force promotion, detection, API restoration and the both-version concept-shift case. Mild covariate shift was missed at the declared thresholds; current monitoring evidence and subgroup uncertainty are reported in [Operations](OPERATIONS.md). Pensioner/older control subgroups have weaker observed discrimination/recall with broad intervals (control run `33a3e767bd284070929c04106f841cd6`), not a causal or fairness conclusion.
 
 The load matrix has no request errors, but the indicative p95 target remains unmet. The single-client full-history p95 is 131.0 ms (run `41cc517ba01145b38cf4893d372abb1b`); under concurrency eight it is 859.3 ms with one worker and 351.3 ms with four (runs `666d3ba6f62541efa8892ddf68aa64d8` and `2e384c5b561f4186ada07a39bac466ed`). These are local measurements, not production SLOs. The API returns to one worker for coherent process-local reload.

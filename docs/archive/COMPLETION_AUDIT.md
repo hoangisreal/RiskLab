@@ -1,5 +1,7 @@
 # Completion audit
 
+> ARCHIVED 2026-11-04 — superseded by `docs/RESULTS.md` §7. Kept as the original audit record.
+
 Scope: mandatory Phases 0–4 and the project Definition of Done in MASTER_PLAN.md. Phase 5 stays optional. This table records evidence. Historical Test results do not inform new choices; a new opening requires explicit owner approval after a concrete clean-tree candidate/lock exists.
 
 | Requirement | Verified evidence | Remaining work |

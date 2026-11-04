@@ -1,5 +1,7 @@
 # Monitoring
 
+> ARCHIVED 2026-11-04 — superseded by `docs/OPERATIONS.md` §5 and `docs/RESULTS.md` §7. Kept for full evidence tables.
+
 Monitoring is a seeded simulation on the disjoint Monitoring pool. It does not supply training, feature-selection, calibration or threshold decisions. The real Kaggle `application_test` file is a separate unlabeled drift sample; it is never confused with the labeled Test partition.
 
 `risklab monitoring create --batch-id ID --scenario SCENARIO` registers a scenario, seed and row budget in `data/monitoring/manifest.json`. The API accepts that registered ID, never a file path. CLI and API evaluate the requested pinned version in a temporary model store without changing the served model. Reports are stored locally and logged to the HTTP MLflow server with model/Selection/lock identities.

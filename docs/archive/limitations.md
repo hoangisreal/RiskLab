@@ -1,5 +1,7 @@
 # Demo vs production
 
+> ARCHIVED 2026-11-04 — merged into `docs/RESULTS.md` §8.
+
 | Aspect | RiskLab | Real production |
 |---|---|---|
 | Data | Static Kaggle snapshot; stratified holdouts | Continuous data; out-of-time validation |

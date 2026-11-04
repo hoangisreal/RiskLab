@@ -1,5 +1,7 @@
 # Leakage controls and diagnostics
 
+> ARCHIVED 2026-11-04 — summary in `docs/RESULTS.md` §6. Kept for the full controls table.
+
 Scope: both the raw application baseline and contract-1.1's served application/bureau/previous/installment set. Published benchmark AUCs are contextual and do not establish leakage or acceptance.
 
 | Control | Enforcement and evidence |

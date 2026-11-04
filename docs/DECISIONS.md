@@ -1,0 +1,70 @@
+# RiskLab — Decisions Log (canonical)
+
+Single source for frozen decisions. `AGENTS.md` holds the non-negotiable
+rules derived from these; `docs/PROJECT.md` §2 holds the resulting frozen
+state. Changing a decision requires: owner approval where noted, a new entry
+here, and re-running whatever the decision invalidates. Experiment rules are
+set in config **before** running (AGENTS.md rule 9).
+
+## Locked values
+
+| Item | Value | Decision |
+|---|---|---|
+| Partition seed / shares | `20261101` / 55-10-10-15-10 (Train-Cal-Sel-Test-Mon) | D9 |
+| Partition hash | `b26bba642ca01b6240cd5f38f21cd0e546b5f975f3ce99cf847eb8f3f35a9101` | D9 |
+| Served sources (contract 1.1) | application+ratios, bureau, previous, installments | D2, E2 run `4e467506bab74355b13bca284dacbb87` |
+| Model family | LightGBM | E1-served comparison `2b1c9ef2f9f94984bb0900c54ec96887` |
+| Calibration | none | E3 run `9a84a8cc279846e88b110f06ee3ea69c` |
+| Threshold | `0.08040201` | E4 run `92aa4caf17fd434f95ad13dd80de5198`, D14 |
+| Artifact SHA256 | `f5e4d127174bde337f03ed14d47ba050efe6f45ba4c599d0e6e558a256b0d676` | E3 |
+| Final lock / Test run | `402b9e050159762d` / `a9fc07a3cbaf43ab88d450ed6a3eca58` | D18 |
+| Test openings | 2 total (legacy `e98453beb10d833e`; contract-1.1 `402b9e050159762d`) | D5, D18 |
+| Monitoring alert scales | smallest of [1, 1.25, 1.5, 2] meeting 5% calibration target; frozen = 1.0 | D15 |
+| Missing-rate alert threshold | 0.20 (`configs/monitoring.yaml`) | 2026-11-03 correction |
+
+## Decisions
+
+| ID | Date | Decision | Consequence / where enforced |
+|---|---|---|---|
+| D1 | 2026-11-01 | MLflow UI + Markdown reports Phases 1–4; Streamlit optional Phase 5 | No dashboard code |
+| D2 | 2026-11-01 | E2 decides which historical tables the API serves; correctness/simplicity over small gains | `configs/features.yaml` served set |
+| D3 | 2026-11-01 | No fixed hardware/schedule; memory-bounded DuckDB + Parquet, never load raw tables into pandas | `data/duckdb_utils.py`, configured `memory_limit` |
+| D4 | 2026-11-01 | English for docs, code, comments, commits | Everywhere |
+| D5 | 2026-11-01 | Test only for final evaluation of a locked selection | `data/loaders.py`, `models/final_eval.py` |
+| D6 | 2026-11-01 | Served artifact == evaluated artifact; no refit after selection | `models/candidate.py`, registry bundle |
+| D7 | 2026-11-01 | Published AUC benchmarks are context only, not acceptance/leakage evidence | Reporting |
+| D8 | 2026-11-01 | Ingest casts from all-VARCHAR with regex guard (DuckDB typed read rounds `2.5`→`3` silently) | `data/ingest.py` |
+| D9 | 2026-11-01 | Partition seed/shares fixed; assignment orders IDs by BLAKE2b(`seed:id`) per class, no RNG stream. Changing requires `--overwrite` and invalidates all downstream results | `data/partition.py`, `configs/partition.yaml` |
+| D10 | 2026-11-01 | Validation is SQL-driven over Parquet in DuckDB (not Pandera); rules in config; known exceptions listed per table/check/id | `data/validate*.py`, `sql/validation/` |
+| D11 | 2026-11-01 | Cleaning is declarative and strictly row-wise (sentinel→NULL+flag, `XNA`→NULL), safe pre-partition and reusable by API | `data/clean.py`, `configs/cleaning.yaml` |
+| D12 | 2026-11-01 | E1/diagnostics declared before running: primary ROC-AUC, `min_gain` 0.005, 1,000 paired bootstraps, 95% CI; LightGBM only if gain ≥ min and CI lower bound > 0, else LR. Permutation band 0.02, screening threshold 0.20 | `configs/experiments/e1.yaml`, `diagnostics.yaml` |
+| D13 | 2026-11-03 | Feature contract 1.1 corrects installment partial-payment aggregation, two-level loan aggregates, NULL no-history rates; application ratios join the engineered baseline. Data-contract corrections, not Test-driven. Contract-1.0 artifacts/Test evidence immutable | `sql/features/`, `docs/data_contract.md` §Historical contract 1.1 |
+| D14 | 2026-11-03 | E1 repeats on E2's served set; its fitted artifact freezes for E3 (E3 no longer refits). Per-loan proxy costs: LGD 0.50, margin 0.05 × `AMT_CREDIT`; E4 picks global threshold on Selection under this policy, reports constant-cost comparison + fixed grid. Illustrative assumptions, not measured losses | `experiments/e234.py`, `configs/cost.yaml` |
+| D15 | 2026-11-03 | Policy analysis: descriptive fixed-LightGBM gender/age ablation, 1,000 paired resamples; gender stays excluded, age stays in. Served diagnostics flag importance share > 0.50 or \|Train-CV − Selection AUC\| > 0.05. Monitoring: 100 calibration + 100 held-out controls, disjoint seeds; smallest predeclared alert scale meeting 5% target freezes per model/profile/config before held-out measurement; performance alerts use 99% bootstrap CIs (500 resamples) | `configs/experiments/policy.yaml`, `configs/monitoring.yaml` |
+| D16 | 2026-11-03 | First contract-1.1 candidate rejected: unordered floating aggregates changed 9 Selection predictions across processes. SUM/AVG inputs get explicit value order in shared SQL; no rounding, no relaxed tolerance. Superseded experiments retained locally, decision rules unchanged on rerun | `sql/features/*.sql` |
+| D17 | 2026-11-03 | Frozen-model behavioral probe declared before running: EXT_SOURCE 0.2→0.8 on seeded Train sample should lower mean risk. Descriptive only; no refit/feature decision follows | Diagnostics |
+| D18 | 2026-11-04 | Owner approved one disclosed Test reuse for lock `402b9e050159762d` (reply "ok"); approval attached to run `a9fc07a3cbaf43ab88d450ed6a3eca58`. No decision follows Test. Phase 5 remains out of scope | `models/final_eval.py` ledger |
+
+## Standing policies
+
+- **Gender/age:** `CODE_GENDER` excluded, age retained (policy run
+  `ca1631574f494d1c85c0fbb0e4c97a2f`). Including gender requires explicit
+  owner approval. See `docs/RESULTS.md` §3.
+- **Test reuse:** any new Test opening needs explicit owner authorization +
+  recorded acknowledgment **before** the read; the durable journal entry is
+  written pre-read. Completed locks return stored results.
+- **Aliases:** registry alias changes only via the documented CLI
+  (`risklab registry promote/rollback`), always audit-logged.
+- **Destructive actions need an explicit ask:** deleting data or
+  `mlflow-data/`, rewriting git history, changing partition seed/shares,
+  moving aliases outside the CLI, opening Test (AGENTS.md §Working).
+
+## Superseded / historical
+
+- Contract-1.0 runs and its single Test opening (lock `e98453beb10d833e`,
+  model run `cf726679c64d467f8ed86c9837fa57d6`) — preserved, never relabeled
+  as contract 1.1, never used to choose contract-1.1 anything.
+- Rejected unordered contract-1.1 experiments (D16) — retained locally under
+  `reports/legacy/`, not an accepted baseline.
+- Original plan text: `docs/archive/MASTER_PLAN.md` (note: it still mentions
+  Pandera/Locust; D10 and the httpx load script supersede those choices).

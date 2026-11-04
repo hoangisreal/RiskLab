@@ -1,5 +1,7 @@
 # RiskLab Master Implementation Plan
 
+> ARCHIVED 2026-11-04 — superseded. Canonical context: `docs/PROJECT.md`; decisions: `docs/DECISIONS.md`. Historical references to `docs/PROGRESS.md`/`docs/experiments.md` mean the archived snapshots in this folder. Some choices here (Pandera, Locust) were superseded by D10 and the httpx load script.
+
 Credit Risk Prediction & Model Monitoring on the Home Credit Default Risk dataset.
 
 - Status: approved implementation plan. Live status and completion evidence are tracked in `docs/PROGRESS.md`.

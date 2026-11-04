@@ -1,5 +1,7 @@
 # Reproducibility
 
+> ARCHIVED 2026-11-04 — superseded by `docs/OPERATIONS.md` §6. Kept for full original text.
+
 Seeds, budgets, decision rules and costs are declared before experiments. All predictive preprocessing is fitted inside Train pipelines, including inner-CV transforms. E1 on the served set persists both fitted models; E3 calibrates its selected frozen winner and saves the exact chosen artifact. E4, candidate preparation and registration reuse it. No refit follows selection.
 
 Shared historical SQL orders floating SUM/AVG inputs explicitly. This matters for tree models: a tiny unordered summation difference can cross a learned split. Contract-1.1's initial unordered run was rejected by candidate verification, retained under `reports/legacy/contract-1.1-unordered`, and superseded. No tolerance was relaxed to admit it. Source/data/protocol hashes record the distinction.

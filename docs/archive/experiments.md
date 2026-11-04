@@ -1,5 +1,7 @@
 # Experiments
 
+> ARCHIVED 2026-11-04 — superseded by `docs/RESULTS.md`. Kept for full original tables.
+
 These are contract-1.1 results from the HTTP MLflow server. All choices use Selection and were frozen before the owner-authorized final Test evaluation. The final report is described in the model card; no Test result informed these choices. Train/Calibration/Selection/Monitoring roles and the fixed partition hash `b26bba642ca01b6240cd5f38f21cd0e546b5f975f3ce99cf847eb8f3f35a9101` are unchanged. Train has 169,131 applicants and Selection 30,751. Configured comparisons use 1,000 paired resamples and 95% intervals. Decisions D13–D16 were recorded before the accepted runs.
 
 The initial unordered contract-1.1 run failed cross-process candidate verification. Its artifacts are preserved locally; the results below use explicitly ordered floating aggregates. No metric tolerance or selection rule was relaxed.

@@ -1,5 +1,7 @@
 # Deployment
 
+> ARCHIVED 2026-11-04 — superseded by `docs/OPERATIONS.md`. Kept for full original procedure text.
+
 RiskLab is a localhost demo. Prepare the Kaggle data under the competition rules; credentials remain outside git. No raw or processed data, predictions, generated reports or MLflow storage is distributed with the repository.
 
 ```bash
