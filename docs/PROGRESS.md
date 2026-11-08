@@ -4,14 +4,15 @@ Current status of RiskLab. Accepted results and evidence are in
 `docs/RESULTS.md`; design decisions are in `docs/DECISIONS.md`; architecture
 is in `docs/PROJECT.md`.
 
-- Last updated: 2026-11-04
+- Last updated: 2026-11-08
 - All planned work is complete: data validation and partitioning, the
   contract-1.1 experiment protocol on Selection, exact reproduction, API
   serving, monitoring, rollback and load evidence, and the final locked Test
-  evaluation (run `a9fc07a3cbaf43ab88d450ed6a3eca58`, lock
-  `402b9e050159762d`).
-- Test partition openings: 2 in total, one per evaluated lock (legacy
-  `e98453beb10d833e`; contract-1.1 `402b9e050159762d`). The append-only
+  evaluation (run `50d36f3b142a41039ff4d72967242f9a`, lock
+  `17b83143e33bb907`).
+- Test partition openings: 3 in total, one per evaluated lock (legacy
+  `e98453beb10d833e`; contract-1.1 `402b9e050159762d` and
+  `17b83143e33bb907`, both evaluating the identical artifact). The append-only
   `reports/final_eval/ledger.jsonl` preserves both. The contract-1.0 result
   is historical only and does not evaluate the corrected contract.
 
@@ -30,7 +31,7 @@ is in `docs/PROJECT.md`.
 
 LightGBM, no calibration, threshold `0.08040201`, artifact SHA256
 `f5e4d127174bde337f03ed14d47ba050efe6f45ba4c599d0e6e558a256b0d676`, served as
-registry v6 under lock `402b9e050159762d`. Details: `docs/RESULTS.md` §4–§5
+registry v7 under lock `17b83143e33bb907`. Details: `docs/RESULTS.md` §4–§5
 and `docs/model_card.md`.
 
 ## Open items

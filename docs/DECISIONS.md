@@ -15,9 +15,9 @@ decision invalidates. Experiment rules are set in config **before** running.
 | Model family | LightGBM | E1-served comparison `2b1c9ef2f9f94984bb0900c54ec96887` |
 | Calibration | none | E3 run `9a84a8cc279846e88b110f06ee3ea69c` |
 | Threshold | `0.08040201` | E4 run `92aa4caf17fd434f95ad13dd80de5198`, D14 |
-| Artifact SHA256 | `f5e4d127174bde337f03ed14d47ba050efe6f45ba4c599d0e6e558a256b0d676` | E3 |
-| Final lock / Test run | `402b9e050159762d` / `a9fc07a3cbaf43ab88d450ed6a3eca58` | D18 |
-| Test openings | 2 total (legacy `e98453beb10d833e`; contract-1.1 `402b9e050159762d`) | D5, D18 |
+| Artifact SHA256 | `f5e4d127174bde337f03ed14d47ba050efe6f45ba4c599d0e6e558a256b0d676` | E3 run `e1f58f0e2ad14e74980b7ac5a855191b` |
+| Final lock / Test run | `17b83143e33bb907` / `50d36f3b142a41039ff4d72967242f9a` | D20 |
+| Test openings | 3 total (legacy `e98453beb10d833e`; contract-1.1 `402b9e050159762d` and `17b83143e33bb907`, same artifact) | D5, D18, D20 |
 | Monitoring alert scales | smallest of [1, 1.25, 1.5, 2] meeting 5% calibration target; frozen = 1.0 | D15 |
 | Missing-rate alert threshold | 0.20 (`configs/monitoring.yaml`) | 2026-11-03 correction |
 
@@ -44,6 +44,8 @@ decision invalidates. Experiment rules are set in config **before** running.
 | D17 | 2026-11-03 | Frozen-model behavioral probe declared before running: EXT_SOURCE 0.2→0.8 on seeded Train sample should lower mean risk. Descriptive only; no refit/feature decision follows | Diagnostics |
 | D18 | 2026-11-04 | Owner approved one disclosed Test reuse for lock `402b9e050159762d` (reply "ok"); approval attached to run `a9fc07a3cbaf43ab88d450ed6a3eca58`. No decision follows Test. Phase 5 remains out of scope | `models/final_eval.py` ledger |
 | D19 | 2026-11-04 | Mild-shift sensitivity probe, declared before running: extend alert-scale candidates below 1 to [0.5, 0.75, 1.0, 1.25, 1.5, 2.0]; calibration picks the smallest scale meeting the 5% target on 100 calibration controls, freezes it, then measures 100 held-out controls and the mild-shift scenario. Outcome: scale 0.5 qualified (calibration false alarms 2%, held-out 0%, run `f0dafdc48e374218a9267492c291d786`); mild shift is now detected on `DAYS_BIRTH` (run `cfbe4b583c9b4ee19fb790f2ac657c66`) with no control alert (run `119db7b7ff5940a7829f64679e94122f`). **Not adopted into the registry:** `monitoring.yaml` is inside the bundle protocol hashes, so shipping sub-1 candidates would break registry-pinned monitoring for v6 and adopting them requires a full protocol rerun + new lock/registration, which would also detach the served version from the completed Test evaluation of lock `402b9e050159762d`. The shipped config therefore keeps [1.0, 1.25, 1.5, 2.0] and scale 1.0 (run `03b14e0ed97c43a48aaaa067ca7eba19`) remains in force; code support for sub-1 scales is retained for a future adoption cycle. Adoption is an explicit owner decision | `monitoring/policy.py`, `monitoring/service.py` |
+
+| D20 | 2026-11-08 | Comment-only cleanup of protocol-hashed configs and sources (removal of internal working-plan references) invalidated lock `402b9e050159762d` by hash. The owner approved a full re-lock: the Selection protocol was re-run unchanged, reproduced every metric exactly, and produced the identical artifact SHA256 `f5e4d127174bde337f03ed14d47ba050efe6f45ba4c599d0e6e558a256b0d676`. New lock `17b83143e33bb907` was registered as version 7 and evaluated on Test with explicit reuse approval (run `50d36f3b142a41039ff4d72967242f9a`, third opening total, identical metrics). | `reports/locks/17b83143e33bb907.json`, registry v7 |
 
 ## Standing policies
 

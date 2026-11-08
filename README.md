@@ -27,7 +27,7 @@ carry their MLflow run ID in [docs/RESULTS.md](docs/RESULTS.md).
 | Brier score | 0.0672 | [0.0666, 0.0677] |
 | Log loss | 0.2418 | [0.2395, 0.2441] |
 
-Test run `a9fc07a3cbaf43ab88d450ed6a3eca58`, lock `402b9e050159762d`.
+Test run `50d36f3b142a41039ff4d72967242f9a`, lock `17b83143e33bb907`.
 
 On Selection, LightGBM beat Logistic Regression by +0.0132 ROC-AUC
 (95% CI [0.0091, 0.0174]) under a decision rule declared in config before

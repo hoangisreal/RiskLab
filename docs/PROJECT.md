@@ -21,11 +21,11 @@ All code, comments, documentation, and commit messages are in English.
 | Model inputs | 147 columns |
 | Model family | LightGBM (repeated E1 on served set), calibration: none |
 | Artifact SHA256 | `f5e4d127174bde337f03ed14d47ba050efe6f45ba4c599d0e6e558a256b0d676` |
-| Base model run | `cbcfa9885a7e4caa982885b8adbb5cc4` |
-| E3 run / E4 run | `9a84a8cc279846e88b110f06ee3ea69c` / `92aa4caf17fd434f95ad13dd80de5198` |
+| Base model run | `4e46b91eca76426396e82828fa7b3b1e` |
+| E3 run / E4 run | `e1f58f0e2ad14e74980b7ac5a855191b` / `82f54a4c01fe4f90829fceeaef60a269` |
 | Threshold | `0.08040201` (per-loan proxy: FP = 0.05×credit, FN = 0.50×credit) |
-| Final lock | `402b9e050159762d` (served as registry v6) |
-| Final Test run | `a9fc07a3cbaf43ab88d450ed6a3eca58`, lock `402b9e050159762d` |
+| Final lock | `17b83143e33bb907` (served as registry v7) |
+| Final Test run | `50d36f3b142a41039ff4d72967242f9a`, lock `17b83143e33bb907` |
 | Partition | seed `20261101`, shares Train/Cal/Sel/Test/Mon = 55/10/10/15/10 |
 | Partition hash | `b26bba642ca01b6240cd5f38f21cd0e546b5f975f3ce99cf847eb8f3f35a9101` |
 

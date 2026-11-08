@@ -116,7 +116,7 @@
       <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><rect x="2" y="2" width="18" height="18" rx="4" fill="none" stroke="#3ecf9e" stroke-width="1.6"/><path d="M7 15V7h4.2a2.9 2.9 0 0 1 0 5.8H7m4.4 0L15 15" fill="none" stroke="#e9f1ea" stroke-width="1.6" stroke-linecap="round"/></svg>
       RiskLab
     </span>
-    <span class="scope">contract 1.1 · registry v6 · localhost demo</span>
+    <span class="scope">contract 1.1 · registry v7 · localhost demo</span>
     <span class="top-right">
       <span class="state"><span class="dot"></span>Locked · Test evaluated</span>
       <a href="../docs/RESULTS.md">Evidence</a>
@@ -155,10 +155,10 @@
         <dl class="facts">
           <div><dt>SHA256</dt><dd class="mono">f5e4d127…d676</dd></div>
           <div><dt>Family</dt><dd>LightGBM, 147 inputs</dd></div>
-          <div><dt>Calibration</dt><dd>None (E3, run <span class="mono">9a84a8cc…</span>)</dd></div>
+          <div><dt>Calibration</dt><dd>None (E3, run <span class="mono">e1f58f0e…</span>)</dd></div>
           <div><dt>Threshold</dt><dd class="num">0.08040201</dd></div>
           <div><dt>At threshold (Selection)</dt><dd class="num">approval 0.692 · recall 0.682</dd></div>
-          <div><dt>Lock</dt><dd class="mono">402b9e050159762d</dd></div>
+          <div><dt>Lock</dt><dd class="mono">17b83143e33bb907</dd></div>
           <div><dt>Proxy costs</dt><dd>FP 0.05 × credit · FN 0.50 × credit</dd></div>
         </dl>
       </div>
@@ -170,7 +170,7 @@
   <section class="sec" aria-labelledby="mon-h">
     <div class="sec-head">
       <h2 id="mon-h">Would monitoring catch a fault?</h2>
-      <span class="hint">Monitoring pool only · controls run <span class="mono">03b14e0e…</span></span>
+      <span class="hint">Monitoring pool only · controls run <span class="mono">dd00fae6…</span></span>
       <span style="margin-left:auto" class="seg" role="group" aria-label="Alert scale">
         <button type="button" id="scale-1" aria-pressed="true">Scale 1.0 · in force</button>
         <button type="button" id="scale-05" aria-pressed="false">Scale 0.5 · D19 probe</button>
@@ -194,7 +194,7 @@
 
   <section class="sec" aria-labelledby="sub-h">
     <div class="sec-head"><h2 id="sub-h">Who the threshold treats unevenly</h2>
-    <span class="hint">Test run <span class="mono">a9fc07a3…</span> · Selection run <span class="mono">9a84a8cc…</span></span></div>
+    <span class="hint">Test run <span class="mono">50d36f3b…</span> · Selection run <span class="mono">e1f58f0e…</span></span></div>
     <div class="table-scroll"><table>
       <thead><tr><th>Group</th><th class="n">Base rate</th><th class="n">AUC</th><th class="n">FPR</th><th class="n">FNR</th></tr></thead>
       <tbody id="sub-rows"></tbody>
@@ -226,7 +226,7 @@
 <script>
 const DATA = {
   kpis: [
-    {lab:"Test ROC-AUC, locked", fig:"0.7754", sub:"95% CI [0.7676, 0.7829] · 46,127 rows · run a9fc07a3…"},
+    {lab:"Test ROC-AUC, locked", fig:"0.7754", sub:"95% CI [0.7676, 0.7829] · 46,127 rows · run 50d36f3b…"},
     {lab:"Test PR-AUC", fig:"0.2565", sub:"95% CI [0.2456, 0.2694] · prevalence ≈ 0.081"},
     {lab:"Test Brier / log loss", fig:"0.0672 / 0.2418", sub:"ECE 0.0072 at the frozen threshold"},
     {lab:"Selection ROC-AUC, served set", fig:"0.7725", sub:"LightGBM vs LR 0.7594 · gain +0.0132 [0.0091, 0.0174]"},
@@ -250,7 +250,7 @@ const DATA = {
   monitoring: {
     "1": {summary:"In force. Calibration alerts 1/100, held-out 0/100 at scale 1.0.",
       rows:[
-        ["Control, no fault","No alert","ok","controls 03b14e0e…"],
+        ["Control, no fault","No alert","ok","controls dd00fae6…"],
         ["Income × 1000 bug","Detected","ok","scenario summary f1d5df3f…"],
         ["60% of EXT_SOURCE_3 missing","Detected","ok","scenario summary f1d5df3f…"],
         ["Income category renamed","Detected","ok","scenario summary f1d5df3f…"],

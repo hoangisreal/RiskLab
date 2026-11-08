@@ -10,8 +10,8 @@ curves live in the MLflow runs; `docs/model_card.md` is the artifact card.
 
 ## 1. E1 — model family (application features)
 
-Runs: LR `50e64b81e3464e3da2d0d30caae9d88d`, LightGBM
-`0ddfcd8a40ac4820b6da16ae205ab826`, comparison `da3c298ee217424e9fd4f2e9ba769906`.
+Runs: LR `1684a06d5fce458f9644bef682bb3e04`, LightGBM
+`5b2a7c2d439745f9920412275920b5cd`, comparison `e59165a490914afd8c59dda56ede2752`.
 
 | Selection metric | LR | LightGBM |
 |---|---:|---:|
@@ -26,7 +26,7 @@ inner 5-fold Train CV, preprocessing refitted per fold.
 
 ## 2. E2 — historical sources
 
-Run `4e467506bab74355b13bca284dacbb87`. Fixed LightGBM params; a group is
+Run `620965285a7d40d8b8a11b97d5b101db`. Fixed LightGBM params; a group is
 served only if marginal cumulative ROC-AUC gain ≥ 0.003 and paired CI lower
 bound > 0.
 
@@ -50,9 +50,9 @@ optimal; the rule bounds source/contract burden over small uncertain gains.
 
 ### E1 repeated on the served set (the artifact that ships)
 
-Runs: LR `7e8c455c6d814eedad18a905fca67afe`, LightGBM
-`cbcfa9885a7e4caa982885b8adbb5cc4`, comparison
-`2b1c9ef2f9f94984bb0900c54ec96887`. 147 inputs; Train CV chose LR C=0.01 and
+Runs: LR `bb0de338703f49ee9d048a67f4b216d5`, LightGBM
+`4e46b91eca76426396e82828fa7b3b1e`, comparison
+`53f3b77cf9724cad8450ac6a1cd2586c`. 147 inputs; Train CV chose LR C=0.01 and
 283 LightGBM rounds.
 
 | Selection metric | LR | LightGBM | Difference | 95% CI |
@@ -66,7 +66,7 @@ LightGBM wins the unchanged rule. This fitted artifact is frozen for E3.
 
 ## 3. Policy analysis (descriptive, not a selection)
 
-Run `ca1631574f494d1c85c0fbb0e4c97a2f`, fixed LightGBM on served set.
+Run `5071cd0fcd5348bb8df5589e925d2a10`, fixed LightGBM on served set.
 
 | Policy | Selection AUC | Δ vs default | 95% CI |
 |---|---:|---:|---|
@@ -80,7 +80,7 @@ approval. Removing age inputs does not remove all age proxies.
 
 ## 4. E3 calibration / E4 threshold
 
-E3 run `9a84a8cc279846e88b110f06ee3ea69c` on the frozen artifact above.
+E3 run `e1f58f0e2ad14e74980b7ac5a855191b` on the frozen artifact above.
 Calibrators fit Calibration only; comparisons score Selection.
 
 | Method | Log loss | Brier | ECE (15 bins) |
@@ -92,7 +92,7 @@ Calibrators fit Calibration only; comparisons score Selection.
 Chosen: **none** (lowest log loss, simplest). Artifact SHA256
 `f5e4d127174bde337f03ed14d47ba050efe6f45ba4c599d0e6e558a256b0d676`.
 
-E4 run `92aa4caf17fd434f95ad13dd80de5198` reuses that exact artifact.
+E4 run `82f54a4c01fe4f90829fceeaef60a269` reuses that exact artifact.
 Threshold **0.08040201** (Bayes reference 0.09090909). At threshold on
 Selection: approval 0.692238, precision 0.178888, recall 0.682111, proxy cost
 14,533.40/applicant (FP 0.05×credit, FN 0.50×credit — proxies, TARGET is
@@ -101,9 +101,10 @@ payment difficulty, not measured loss). Constant-cost comparison chooses
 
 ## 5. Locked Test evaluation (final, owner-authorized)
 
-Run `a9fc07a3cbaf43ab88d450ed6a3eca58`, lock `402b9e050159762d`, clean source
-`98f5ab3`, 46,127 rows, unchanged artifact and threshold. Opening 2 total,
-1 for this lock (D18). Intervals: locked 1,000-resample stratified bootstrap.
+Run `50d36f3b142a41039ff4d72967242f9a`, lock `17b83143e33bb907`, clean source
+`9237788`, 46,127 rows, unchanged artifact and threshold. Opening 3 total,
+1 for this lock (D20). The previous lock `402b9e050159762d` evaluated the
+identical artifact SHA256 with identical metrics. Intervals: locked 1,000-resample stratified bootstrap.
 
 | Test metric | Value | 95% CI |
 |---|---:|---:|
@@ -120,7 +121,7 @@ pensioner/older recall (FNR 0.539 / 0.667). No causal or fairness claim; no
 decision followed. Full table: `docs/model_card.md`.
 
 Selection replication (descriptive, E3 predictions run
-`9a84a8cc279846e88b110f06ee3ea69c`, same frozen artifact/threshold): the
+`e1f58f0e2ad14e74980b7ac5a855191b`, same frozen artifact/threshold): the
 age pattern is already present where decisions may look. Base rate falls
 monotonically with age (≤25: 0.119 → 65+: 0.034) and mean predicted
 probability tracks it closely per band (0.121 → 0.036), so the global
@@ -138,8 +139,8 @@ missing evidence is not backfilled.
 
 ## 6. Leakage diagnostics (summary)
 
-Runs: application `51eb3b0ef61747ba93d7582512f88d7e`, served
-`d7bfa962dc1b44adb0766becfd85a1ab`. Declared beforehand: permutation band
+Runs: application `bde0b31723554136ab4f1157b1f75fc8`, served
+`be9a520b3fee4c77aef17c6cbda51aeb`. Declared beforehand: permutation band
 ±0.02 around 0.5, screening deviation 0.20, max gain share 0.50, max
 |Train-CV − Selection AUC| 0.05.
 
@@ -163,12 +164,12 @@ Runs: application `51eb3b0ef61747ba93d7582512f88d7e`, served
 | E1/E2/E3/E4, policy, diagnostics | Runs in §1–§4, §6; rules declared before running |
 | Independent metric check | `scripts/recompute_metrics.py` (plain sklearn) matches accepted runs within 1e-9 |
 | Served == selected artifact | HTTP golden `6fa54cc59a9043ba85f8982149f46fc3`: 500 Train payloads, max prob diff 0 |
-| Registration | v4 proof `409c012818844b38a980658db22f12b3`; final v6 `28cfaf15adec482d98b12516a4744f2f` (same artifact) |
-| Monitoring controls | `03b14e0ed97c43a48aaaa067ca7eba19`: scale 1.0, 1/100 calibration alerts, 0/100 held-out |
+| Registration | v7 `3d11d2293dcf4ad8b77e558c6cb57a48` under lock `17b83143e33bb907` (same artifact SHA256 as v6) |
+| Monitoring controls | `dd00fae6c1ad4f3baec4e1c594f867b8`: scale 1.0, 1/100 calibration alerts, 0/100 held-out |
 | Monitoring scenarios | Summary `f1d5df3f91014aaebe595dfaab7ed6b3`: 3 injected bugs + strong age + label shift detected; **mild age shift missed (disclosed)**; Kaggle unlabeled has no performance section |
 | Rollback exercise | `1f82bddd7d374a7181a57445f65c9bc9`: gate block → audited force-promote → detection → CLI rollback/API restore |
 | Load matrix | `666d3ba6f62541efa8892ddf68aa64d8` (1 worker), `2e384c5b561f4186ada07a39bac466ed` (4 workers): 0/200 errors per case; **indicative 100 ms p95 target unmet (disclosed, no SLO claim)** |
-| Final Test | §5, run `a9fc07a3cbaf43ab88d450ed6a3eca58`, lock `402b9e050159762d` |
+| Final Test | §5, run `50d36f3b142a41039ff4d72967242f9a`, lock `17b83143e33bb907` |
 
 ## 8. Known limitations (demo vs production)
 

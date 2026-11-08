@@ -81,9 +81,10 @@ docker compose run --rm train final-eval --lock LOCK_ID \
 The journal records the opening **before** any read (including a
 failed/crashed attempt). A completed lock returns its stored report without
 reopening. Never use the report to choose model/features/calibration/
-threshold. Completed instance: lock `402b9e050159762d`, run
-`a9fc07a3cbaf43ab88d450ed6a3eca58` (D18) — that approval does not extend to
-any future lock.
+threshold. Completed instances: lock `402b9e050159762d`, run
+`a9fc07a3cbaf43ab88d450ed6a3eca58` (D18), and the re-lock
+`17b83143e33bb907`, run `50d36f3b142a41039ff4d72967242f9a` (D20) — those
+approvals do not extend to any future lock.
 
 ## 5. Monitoring, rollback, load
 
@@ -106,7 +107,7 @@ docker compose run --rm train registry rollback --version PREVIOUS_VERSION --rea
 - Alert policy: smallest of scales [1, 1.25, 1.5, 2] meeting the 5%
   calibration target on 100 calibration controls, frozen before 100 held-out
   controls are measured (accepted: scale 1.0, run
-  `03b14e0ed97c43a48aaaa067ca7eba19`). Batches share a static pool and may
+  `dd00fae6c1ad4f3baec4e1c594f867b8`). Batches share a static pool and may
   overlap. Mild age shift is missed at these thresholds (disclosed).
 - Rollback requires a compatible previously-audited promotion; every alias
   change appends to `reports/registry_audit.jsonl`. Rollback fixes a model
