@@ -18,6 +18,8 @@ dependencies = [
     "pyyaml>=6.0",
     "scikit-learn>=1.6",
     "typer>=0.12",
+    "xgboost>=3.4.1",
+    "catboost>=1.2.10",
 ]
 
 [project.scripts]

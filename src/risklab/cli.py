@@ -256,6 +256,52 @@ def e1(
 
 
 @app.command()
+def e5(
+    ctx: typer.Context,
+    no_tracking: Annotated[
+        bool,
+        typer.Option("--no-tracking", help="Skip MLflow; metrics are not reportable."),
+    ] = False,
+) -> None:
+    """Run E5 (post-lock challenger study: XGBoost/CatBoost/HistGB vs champion)."""
+    from risklab.experiments.e5 import E5Error, run_e5
+
+    try:
+        cfg_dir = _config_dir(ctx)
+        data_cfg = load_data_config(cfg_dir)
+        root = project_root(cfg_dir)
+        summary = run_e5(
+            config_path=root / "experiments/e5.yaml",
+            config_dir=cfg_dir,
+            root=root,
+            output_dir=data_cfg.reports_dir / "experiments/e5",
+            data_cfg=data_cfg,
+            tracking=not no_tracking,
+            log=typer.echo,
+        )
+    except (
+        ConfigError,
+        E5Error,
+        LoaderError,
+        PartitionError,
+        EvaluationError,
+        TrackingError,
+    ) as exc:
+        _fail(str(exc))
+    for name, m in summary["selection_metrics"].items():
+        typer.echo(f"{name}: " + ", ".join(f"{k}={v:.5f}" for k, v in m.items()))
+    for name, c in summary["comparisons_vs_champion"].items():
+        primary = c["paired_bootstrap_vs_champion"]["roc_auc"]
+        typer.echo(
+            f"{name} vs champion: delta roc_auc={primary['delta']:+.5f} "
+            f"CI [{primary['ci_low']:+.5f}, {primary['ci_high']:+.5f}] "
+            f"flagged_superior={c['flagged_superior']}"
+        )
+    if summary["run_ids"]:
+        typer.echo(f"MLflow runs: {summary['run_ids']}")
+
+
+@app.command()
 def diagnostics(
     ctx: typer.Context,
     no_tracking: Annotated[
