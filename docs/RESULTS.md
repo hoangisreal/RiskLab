@@ -170,8 +170,6 @@ Runs: application `51eb3b0ef61747ba93d7582512f88d7e`, served
 | Load matrix | `666d3ba6f62541efa8892ddf68aa64d8` (1 worker), `2e384c5b561f4186ada07a39bac466ed` (4 workers): 0/200 errors per case; **indicative 100 ms p95 target unmet (disclosed, no SLO claim)** |
 | Final Test | §5, run `a9fc07a3cbaf43ab88d450ed6a3eca58`, lock `402b9e050159762d` |
 
-Original audit table: `docs/archive/COMPLETION_AUDIT.md`.
-
 ## 8. Known limitations (demo vs production)
 
 | Aspect | RiskLab | Real production |

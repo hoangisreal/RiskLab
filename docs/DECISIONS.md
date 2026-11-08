@@ -1,10 +1,9 @@
 # RiskLab — Decisions Log (canonical)
 
-Single source for frozen decisions. `AGENTS.md` holds the non-negotiable
-rules derived from these; `docs/PROJECT.md` §2 holds the resulting frozen
-state. Changing a decision requires: owner approval where noted, a new entry
-here, and re-running whatever the decision invalidates. Experiment rules are
-set in config **before** running (AGENTS.md rule 9).
+Single source for frozen decisions. `docs/PROJECT.md` holds the resulting
+frozen state and the design invariants derived from these decisions.
+Changing a decision requires a new entry here and re-running whatever the
+decision invalidates. Experiment rules are set in config **before** running.
 
 ## Locked values
 
@@ -56,9 +55,9 @@ set in config **before** running (AGENTS.md rule 9).
   written pre-read. Completed locks return stored results.
 - **Aliases:** registry alias changes only via the documented CLI
   (`risklab registry promote/rollback`), always audit-logged.
-- **Destructive actions need an explicit ask:** deleting data or
+- **Destructive actions need an explicit decision:** deleting data or
   `mlflow-data/`, rewriting git history, changing partition seed/shares,
-  moving aliases outside the CLI, opening Test (AGENTS.md §Working).
+  moving aliases outside the CLI, or opening Test.
 
 ## Superseded / historical
 
@@ -67,5 +66,5 @@ set in config **before** running (AGENTS.md rule 9).
   as contract 1.1, never used to choose contract-1.1 anything.
 - Rejected unordered contract-1.1 experiments (D16) — retained locally under
   `reports/legacy/`, not an accepted baseline.
-- Original plan text: `docs/archive/MASTER_PLAN.md` (note: it still mentions
-  Pandera/Locust; D10 and the httpx load script supersede those choices).
+- Early design drafts proposed Pandera and Locust; D10 and the httpx load
+  script supersede those choices.

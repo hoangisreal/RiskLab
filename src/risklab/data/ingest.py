@@ -1,4 +1,4 @@
-"""Raw CSV -> Parquet ingest with an explicit schema and strict parsing (MASTER_PLAN Section 8).
+"""Raw CSV -> Parquet ingest with an explicit schema and strict parsing.
 
 Design notes:
 

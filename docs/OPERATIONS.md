@@ -1,8 +1,9 @@
 # RiskLab — Operations
 
 Procedures for setup, selection, locking, serving, monitoring, and
-reproduction. Context: `docs/PROJECT.md`. Frozen values: `docs/DECISIONS.md`.
-Never open Test from anything in this file except the gated final-eval step.
+reproduction. Architecture: `docs/PROJECT.md`. Frozen values:
+`docs/DECISIONS.md`. Never open Test from anything in this file except the
+gated final-eval step.
 
 ## 1. Setup and full Selection protocol
 
@@ -59,7 +60,7 @@ any swap.
 | `POST /monitoring/evaluate` | Registered `batch_id`, optional pinned version; unknown ID → 404 |
 | `POST /admin/models/reload` | Admin key from env; validate/download before swap; failure keeps current model (502) |
 
-Rules an agent must not break: required history source `not_provided`/absent
+Serving rules: required history source `not_provided`/absent
 → 422 (never impute as no-history); `provided` + empty records asserts no
 history; raw IDs, `TARGET`, `CODE_GENDER`, computed ratios/flags are
 forbidden in requests; body caps 5,000 records/source and 5,000,000 bytes

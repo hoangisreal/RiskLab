@@ -1,4 +1,4 @@
-"""Calibration on frozen pipelines (MASTER_PLAN Section 5 steps 2-3).
+"""Calibration on frozen pipelines.
 
 The base pipeline is fitted on Train and frozen; each calibrator is fitted only on
 Calibration. Method choice happens on Selection by log loss with a paired bootstrap

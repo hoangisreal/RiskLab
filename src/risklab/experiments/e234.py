@@ -1,4 +1,4 @@
-"""E2/E3/E4 runners (MASTER_PLAN Section 6): feature groups, calibration, threshold.
+"""E2/E3/E4 runners: feature groups, calibration, threshold.
 
 All decisions use Selection only; Test is never read. Each runner returns a summary
 dict with MLflow run ids when tracking is enabled (empty without tracking).
@@ -398,7 +398,7 @@ def run_e3(
         "selection": selection,
     }
     if cfg.include_scale_pos_weight_diagnostic:
-        # Diagnostic only: class weighting distorts probabilities (AGENTS.md rule 5).
+        # Diagnostic only: class weighting distorts probabilities.
         ytr = y_tr.to_numpy()
         spw = float((ytr == 0).sum() / max((ytr == 1).sum(), 1))
         diag_params = lgbm_base.model_copy(update={})

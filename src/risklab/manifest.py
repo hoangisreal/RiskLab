@@ -1,4 +1,4 @@
-"""Run manifests shared by all pipeline steps (MASTER_PLAN Section 11.2)."""
+"""Run manifests shared by all pipeline steps."""
 
 from __future__ import annotations
 

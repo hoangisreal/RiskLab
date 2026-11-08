@@ -1,5 +1,5 @@
 # Logistic Regression hyperparameters. Defaults only; search budgets are set by experiment configs.
-# No class weighting (AGENTS.md rule 5).
+# No class weighting: it distorts predicted probabilities.
 seed: 20261101
 C: 1.0
 max_iter: 1000

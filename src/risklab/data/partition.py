@@ -1,4 +1,4 @@
-"""Deterministic stratified partition assignment (MASTER_PLAN Section 4.1).
+"""Deterministic stratified partition assignment.
 
 Assignment is a pure function of the set of (id, target) pairs, the seed and the shares. It does
 not use any RNG stream: within each TARGET class ids are ordered by a BLAKE2b hash of

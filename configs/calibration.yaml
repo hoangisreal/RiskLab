@@ -1,4 +1,4 @@
-# Calibration protocol (MASTER_PLAN Section 5). Declared before E3 runs.
+# Calibration protocol. Declared before E3 runs.
 methods: [none, sigmoid, isotonic]
 ece_bins: 15
 bootstrap_resamples: 1000

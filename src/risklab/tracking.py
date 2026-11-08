@@ -1,4 +1,4 @@
-"""MLflow run setup shared by all experiments (MASTER_PLAN Section 9).
+"""MLflow run setup shared by all experiments.
 
 Clients never open a database or artifact path directly. They talk to the tracking server named by
 ``MLFLOW_TRACKING_URI`` (``make mlflow`` starts one on 127.0.0.1:5000). Every run carries the same

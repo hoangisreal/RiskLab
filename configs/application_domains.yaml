@@ -2,7 +2,7 @@
 # Derived once by scripts/derive_application_domains.py from the real Parquet, then reviewed.
 # NULL is always allowed here; null rates are reported separately by `risklab validate`.
 # 'XNA' ("not applicable") is listed where it occurs in the raw data.
-# Categories unseen at serving time are handled by the API contract (MASTER_PLAN Section 10),
+# Categories unseen at serving time are handled by the API contract,
 # not by this file.
 domains:
   NAME_CONTRACT_TYPE:

@@ -1,6 +1,6 @@
 """E1: Logistic Regression vs LightGBM on identical application features and partitions.
 
-Protocol (MASTER_PLAN Section 6): hyperparameters and boosting rounds come from inner CV on Train;
+Protocol: hyperparameters and boosting rounds come from inner CV on Train;
 both models are refitted on Train and scored on the Selection partition; the decision uses a paired
 bootstrap on Selection and the rule declared in ``configs/experiments/e1.yaml`` before the run.
 The Test partition is never read. Every number reported here comes from an MLflow run.

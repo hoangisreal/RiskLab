@@ -36,7 +36,7 @@ curl -X POST http://127.0.0.1:8000/predict -H 'Content-Type: application/json' \
   -d '{"contract_version":"1.1","application":{"AMT_CREDIT":500000,"AMT_INCOME_TOTAL":200000},"history":{"bureau":{"status":"provided","records":[]},"previous_applications":{"status":"provided","records":[]},"installments":{"status":"provided","records":[]}}}'
 ```
 
-The sample supplies the selected contract-1.1 sources. Empty records explicitly assert no history; unavailable required sources return 422. See [API contract](api_contract.md) for types, bounds, references and explanations.
+The sample supplies the selected contract-1.1 sources. Empty records explicitly assert no history; unavailable required sources return 422. See [API contract](../api_contract.md) for types, bounds, references and explanations.
 
 Registration stores the selected model, signature, pinned requirements, immutable reference profile, model card and validated lock. Promotion loads/verifies the bundle and applies the Selection gate against the current champion (absolute configured floors for a first version). Forced promotion requires a recorded reason and bypasses only metric checks. Runtime, source/schema and parity validation still apply.
 
@@ -70,4 +70,4 @@ Reload resolves a numeric version, validates metadata/runtime/source/profile, do
 
 Run the controlled rollback exercise with one API worker. It deliberately trains/registers a separate bad artifact, demonstrates gate blocking/forced promotion/detection, and restores the starting version even after an error. It never opens Test. Multiple-worker measurements use `RISKLAB_API_WORKERS`; process-local admin reload is not a broadcast deployment mechanism. See [Monitoring](monitoring.md) for controls, shared-drift limitations and load commands.
 
-MLflow and the API are bound to localhost; MLflow is unauthenticated. Back up `mlflow-data/` while the server is stopped. Do not delete it to reset the demo. Verified registration, HTTP parity, monitoring, rollback and load evidence for the corrected artifact are recorded in [Progress](PROGRESS.md) and [Monitoring](monitoring.md). Operational proof identities describe those recorded runs; `/models/current` is authoritative for the active final revision's version, run and lock.
+MLflow and the API are bound to localhost; MLflow is unauthenticated. Back up `mlflow-data/` while the server is stopped. Do not delete it to reset the demo. Verified registration, HTTP parity, monitoring, rollback and load evidence for the corrected artifact are recorded in [Project status](../PROGRESS.md) and [Monitoring](monitoring.md). Operational proof identities describe those recorded runs; `/models/current` is authoritative for the active final revision's version, run and lock.

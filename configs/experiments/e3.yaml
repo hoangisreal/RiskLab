@@ -1,4 +1,4 @@
-# E3: raw vs calibrated probabilities (MASTER_PLAN Section 5).
+# E3: raw vs calibrated probabilities.
 # Primary metric: log loss on Selection. Simplest method within the CI wins.
 experiment_name: risklab-e3-calibration
 seed: 20261101

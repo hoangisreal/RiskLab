@@ -1,4 +1,4 @@
-"""Selection lock (MASTER_PLAN Section 4.3): freeze a choice before Test is opened."""
+"""Selection lock: freeze a choice before Test is opened."""
 
 from __future__ import annotations
 

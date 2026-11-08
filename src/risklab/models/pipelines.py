@@ -3,7 +3,7 @@
 Each factory returns one sklearn ``Pipeline`` (steps ``prep`` and ``model``). Every cross-applicant
 statistic (medians, means, scales, category sets) is learned inside ``.fit`` from whatever rows are
 passed to it, which must be the Train partition only. ``transform``/``predict_proba`` never change
-fitted state. Neither pipeline uses class weighting or resampling (AGENTS.md rule 5).
+fitted state. Neither pipeline uses class weighting or resampling.
 
 Logistic Regression: monetary columns get ``log1p`` (negatives clipped to 0, NaN kept) before the
 median imputer (``add_indicator=True``, so missingness is a feature) and the standard scaler.

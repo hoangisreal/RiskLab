@@ -1,4 +1,4 @@
-"""Role-gated reads of labeled rows (MASTER_PLAN Section 4.2).
+"""Role-gated reads of labeled rows.
 
 ``load_partition`` is the only sanctioned way to read labeled rows by partition role. The Test
 role is never readable here: it is reserved for ``risklab.models.final_eval`` with a selection

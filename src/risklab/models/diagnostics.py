@@ -1,4 +1,4 @@
-"""Leakage diagnostics on the application model inputs (MASTER_PLAN Section 7.2).
+"""Leakage diagnostics on the application model inputs.
 
 Two checks, neither of which uses published benchmarks:
 

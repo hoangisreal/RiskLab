@@ -1,4 +1,4 @@
-"""API request/response schemas (MASTER_PLAN Section 10.2)."""
+"""API request/response schemas."""
 
 from __future__ import annotations
 

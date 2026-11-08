@@ -1,7 +1,7 @@
 """Run the complete pre-Test protocol in the train image, retaining logs for every step.
 
-Run from the repository root. The first contract-1.1 run must preserve the legacy reports
-as described in docs/PROGRESS.md. No command here opens Test or changes a registry alias.
+Run from the repository root. The first contract-1.1 run must preserve the legacy reports.
+No command here opens Test or changes a registry alias.
 """
 
 from __future__ import annotations

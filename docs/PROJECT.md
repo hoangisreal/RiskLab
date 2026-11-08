@@ -1,21 +1,18 @@
-# RiskLab — Project Context for Coding Agents
+# RiskLab — Architecture
 
-Read this file first. It is the canonical context map. Rules that must never be
-broken live in `AGENTS.md`; frozen choices live in `docs/DECISIONS.md`; accepted
-results live in `docs/RESULTS.md`; run/deploy procedures live in
-`docs/OPERATIONS.md`. Historical detail is in `docs/archive/`.
+RiskLab estimates the probability that a loan applicant will have payment
+difficulties (`TARGET`) on the Home Credit Default Risk dataset. It compares
+Logistic Regression and LightGBM, selects historical feature sources,
+calibrates, picks a decision threshold, serves the frozen artifact through
+FastAPI, and demonstrates monitoring and audited rollback.
 
-## 1. What this is
+RiskLab is a production-oriented demo, not a production credit-decisioning
+system. The `approve`/`review` output is illustrative. Limitations are listed
+in `docs/RESULTS.md` §8.
 
-- Credit-risk demo on Home Credit Default Risk: estimate P(payment difficulty)
-  (`TARGET`), compare LR vs LightGBM, select historical feature sources,
-  calibrate, pick a threshold, serve the frozen artifact via FastAPI, and
-  demonstrate monitoring + audited rollback.
-- Production-oriented demo, **not** a production credit-decisioning system.
-  `approve`/`review` is illustrative. Limitations: `docs/RESULTS.md` §8.
-- Language: English for all code, comments, docs, commits (`AGENTS.md` D4).
+All code, comments, documentation, and commit messages are in English.
 
-## 2. Frozen state (do not re-derive)
+## Frozen state
 
 | Item | Value |
 |---|---|
@@ -27,15 +24,16 @@ results live in `docs/RESULTS.md`; run/deploy procedures live in
 | Base model run | `cbcfa9885a7e4caa982885b8adbb5cc4` |
 | E3 run / E4 run | `9a84a8cc279846e88b110f06ee3ea69c` / `92aa4caf17fd434f95ad13dd80de5198` |
 | Threshold | `0.08040201` (per-loan proxy: FP = 0.05×credit, FN = 0.50×credit) |
-| Final lock | `402b9e050159762d` (clean source `98f5ab3`, served as registry v6) |
-| Final Test run | `a9fc07a3cbaf43ab88d450ed6a3eca58` — owner-authorized reuse, opening 2 total |
+| Final lock | `402b9e050159762d` (served as registry v6) |
+| Final Test run | `a9fc07a3cbaf43ab88d450ed6a3eca58`, lock `402b9e050159762d` |
 | Partition | seed `20261101`, shares Train/Cal/Sel/Test/Mon = 55/10/10/15/10 |
 | Partition hash | `b26bba642ca01b6240cd5f38f21cd0e546b5f975f3ce99cf847eb8f3f35a9101` |
 
-Any metric you cite must carry its MLflow run ID (plus lock ID for Test).
-Full numbers: `docs/RESULTS.md`, `docs/model_card.md`.
+Every reported metric carries its MLflow run ID, plus the lock ID for Test
+metrics. Full numbers are in `docs/RESULTS.md` and `docs/model_card.md`.
+Design decisions and their rationale are recorded in `docs/DECISIONS.md`.
 
-## 3. Architecture and data flow
+## Architecture and data flow
 
 ```
 Kaggle CSV (data/raw, never committed)
@@ -48,138 +46,132 @@ Kaggle CSV (data/raw, never committed)
   -> Calibration partition FrozenEstimator calibrators (contract 1.1: none chosen)
   -> Selection partition   family / sources / calibration / threshold + gate
   -> selection lock        models/select.py freezes artifact+config/SQL hashes
-  -> final-eval            models/final_eval.py, ONLY code allowed to open Test
+  -> final-eval            models/final_eval.py, the only Test reader
   -> MLflow registry       alias @champion, immutable serving bundle
   -> FastAPI               /predict /models/current /health /monitoring/evaluate
   -> Monitoring pool       seeded drift/performance simulations, never trains
 ```
 
-Key invariants (enforced in code, tested — see `AGENTS.md` for the full list):
+### Design invariants
 
-1. Partition roles: Train fits, Calibration fits calibrators only, Selection
-   decides + promotion gate, Test only via locked `final-eval`, Monitoring
-   only for simulations.
-2. Labeled rows only through `load_partition`; it never returns Test.
-   Never read Test outside `src/risklab/models/final_eval.py`.
-3. Any cross-applicant statistic is fitted inside the sklearn Pipeline on
-   Train only. Feature SQL aggregates only the applicant's own history and
-   never references `TARGET`. Historical events must precede the application.
-4. No class weighting/resampling unless an experiment config explicitly asks.
-5. Served artifact == evaluated artifact. No refit after selection.
-6. Batch and online (API) features share the same cleaning code and SQL
-   files; any change to either requires the parity test to pass.
+These invariants are enforced in code and covered by tests:
 
-## 4. Module map (`src/risklab/`)
+1. Partition roles: Train fits models, Calibration fits calibrators only,
+   Selection decides model/sources/calibration/threshold and the promotion
+   gate, Test is read only by the locked final evaluation, and the Monitoring
+   pool is used only for simulations.
+2. Labeled rows are read only through `risklab.data.loaders.load_partition`,
+   which never returns Test. Test is read only in
+   `src/risklab/models/final_eval.py`.
+3. Any statistic computed across applicants (imputation, scaling, encoding,
+   feature selection) is fitted inside the sklearn Pipeline on Train only.
+   Feature SQL aggregates only an applicant's own history and never
+   references `TARGET`. Historical events must precede the application.
+4. No class weighting or resampling in candidate models unless an experiment
+   config explicitly asks for it.
+5. The served artifact is the evaluated artifact. There is no refit after
+   selection.
+6. Batch and online (API) features share the same cleaning code and the same
+   SQL files. Any change to either requires the parity test to pass.
 
-| Package / file | Owns | Touch it when |
-|---|---|---|
-| `cli.py` | Typer CLI, all `risklab *` commands | Adding/changing a command |
-| `config.py` | Pydantic YAML config loading/validation | New config keys |
-| `manifest.py`, `tracking.py` | Run manifests; MLflow run setup + provenance tags | Provenance/logging changes |
-| `verify.py` | `risklab verify` vs `reports/reference/` aggregates | Verification rules |
-| `synthetic.py` | Synthetic raw-data generator (tests/CI never use real data) | Test fixtures |
-| `data/ingest.py` | CSV → Parquet, explicit types, manifest | Raw schema changes |
-| `data/partition.py` | Deterministic stratified assignment (BLAKE2b seed:id) | Never change seed/shares casually — invalidates everything |
-| `data/loaders.py` | Role-gated `load_partition`, hash re-verification | Partition access rules |
-| `data/clean.py` | Row-wise `clean_application` from `configs/cleaning.yaml` | Cleaning rules (shared batch+API) |
-| `data/validate.py`, `validate_history.py` | SQL validation vs data contract | New validation checks |
-| `data/duckdb_utils.py` | Bounded-memory DuckDB helpers | Query plumbing |
-| `features/registry.py` | Feature-group registry from `configs/features.yaml` | Feature groups |
-| `features/application.py`, `historical.py`, `history_clean.py` | App ratios; history feature frames; event cleaning | Feature semantics (parity test!) |
-| `features/build.py` | Batch build to `features/*.parquet` | Batch pipeline |
-| `features/online.py`, `payload.py`, `parity.py` | Per-request features; API payload → frame; batch/API parity | API feature path (parity test!) |
-| `experiments/e1.py` | E1 LR vs LightGBM (+ `--served` repeat) | Model-family comparison |
-| `experiments/e234.py` | E2 sources, E3 calibration, E4 threshold runners | Selection experiments |
-| `experiments/diagnostics.py`, `models/diagnostics.py` | Leakage diagnostics (permutation, screening) | Diagnostics |
-| `models/pipelines.py` | Unfitted LR/LightGBM sklearn Pipelines | Preprocessing/model defs |
-| `models/calibrate.py`, `threshold.py` | FrozenEstimator calibration; cost/threshold | Calibration/cost protocol |
-| `models/evaluate.py` | Metrics, paired bootstrap, prediction files | Metrics |
-| `models/select.py` | Selection lock (content-bound, clean-tree) | Lock format |
-| `models/final_eval.py` | **Only** Test reader; ledger + reuse acknowledgment | Final evaluation only |
-| `models/candidate.py`, `demo_candidate.py` | Candidate verification (no refit); rollback-demo artifact | Candidate prep |
-| `models/explain.py` | TreeSHAP / LR contributions grouped to raw inputs | Explanations |
-| `registry/bundle.py`, `register.py`, `gates.py`, `client.py`, `audit.py` | Serving bundle, registration, promotion gate, alias ops, audit log | Registry behavior |
-| `api/main.py`, `service.py`, `model_store.py` | FastAPI app, prediction service, pinned model loading | Serving |
-| `api/schemas.py`, `contract.py`, `validation.py` | Request/response contract 1.1, relational validation | API contract (see `docs/api_contract.md`) |
-| `api/config.py`, `context.py`, `metadata.py`, `middleware.py` | API settings, request context, `/models/current`, logging (never payloads) | API plumbing |
-| `monitoring/profile.py`, `simulate.py` | Train-fitted reference profile; seeded batch simulator | Monitoring inputs |
-| `monitoring/drift.py`, `performance.py`, `policy.py` | PSI/KS drift, labeled performance, alert policy calibration | Monitoring rules |
-| `monitoring/report.py`, `service.py` | Monitoring reports and evaluation service | Monitoring output |
+## Module map (`src/risklab/`)
 
-## 5. Config map (`configs/`, 28 YAML, all pydantic-validated)
+| Package / file | Responsibility |
+|---|---|
+| `cli.py` | Typer CLI for all `risklab *` commands |
+| `config.py` | Pydantic YAML config loading and validation |
+| `manifest.py`, `tracking.py` | Run manifests; MLflow run setup and provenance tags |
+| `verify.py` | `risklab verify` against `reports/reference/` aggregates |
+| `synthetic.py` | Synthetic raw-data generator used by tests and CI |
+| `data/ingest.py` | CSV to Parquet conversion with explicit types and manifest |
+| `data/partition.py` | Deterministic stratified assignment (BLAKE2b seed:id) |
+| `data/loaders.py` | Role-gated `load_partition` with hash re-verification |
+| `data/clean.py` | Row-wise `clean_application` from `configs/cleaning.yaml` |
+| `data/validate.py`, `validate_history.py` | SQL validation against the data contract |
+| `data/duckdb_utils.py` | Bounded-memory DuckDB helpers |
+| `features/registry.py` | Feature-group registry from `configs/features.yaml` |
+| `features/application.py`, `historical.py`, `history_clean.py` | Application ratios, history feature frames, event cleaning |
+| `features/build.py` | Batch feature build to `features/*.parquet` |
+| `features/online.py`, `payload.py`, `parity.py` | Per-request features, API payload conversion, batch/API parity |
+| `experiments/e1.py` | E1: Logistic Regression vs LightGBM (plus `--served` repeat) |
+| `experiments/e234.py` | E2 sources, E3 calibration, E4 threshold runners |
+| `experiments/diagnostics.py`, `models/diagnostics.py` | Leakage diagnostics (permutation, single-feature screening) |
+| `models/pipelines.py` | Unfitted LR/LightGBM sklearn Pipelines |
+| `models/calibrate.py`, `threshold.py` | FrozenEstimator calibration; cost and threshold analysis |
+| `models/evaluate.py` | Metrics, paired bootstrap, prediction files |
+| `models/select.py` | Selection lock (content-bound, clean-tree) |
+| `models/final_eval.py` | The only Test reader; evaluation ledger and reuse acknowledgment |
+| `models/candidate.py`, `demo_candidate.py` | Candidate verification without refit; rollback-demo artifact |
+| `models/explain.py` | TreeSHAP / LR contributions grouped to raw inputs |
+| `registry/bundle.py`, `register.py`, `gates.py`, `client.py`, `audit.py` | Serving bundle, registration, promotion gate, alias operations, audit log |
+| `api/main.py`, `service.py`, `model_store.py` | FastAPI app, prediction service, pinned model loading |
+| `api/schemas.py`, `contract.py`, `validation.py` | Request/response contract 1.1 and relational validation |
+| `api/config.py`, `context.py`, `metadata.py`, `middleware.py` | API settings, request context, `/models/current`, payload-free logging |
+| `monitoring/profile.py`, `simulate.py` | Train-fitted reference profile; seeded batch simulator |
+| `monitoring/drift.py`, `performance.py`, `policy.py` | PSI/KS drift, labeled performance, alert policy calibration |
+| `monitoring/report.py`, `service.py` | Monitoring reports and evaluation service |
 
-- Data/partitions: `data.yaml`, `partition.yaml`, `raw_schema.yaml`,
+## Configuration (`configs/`)
+
+All configuration is YAML validated by pydantic. Paths, seeds, thresholds,
+and memory limits are never hard-coded.
+
+- Data and partitions: `data.yaml`, `partition.yaml`, `raw_schema.yaml`,
   `application_validation.yaml`, `application_domains.yaml`, `cleaning.yaml`,
   `historical.yaml`.
-- Features: `features.yaml` (groups/served set), `features_application.yaml`.
-- Models/experiments: `model_lr.yaml`, `model_lgbm.yaml`, `calibration.yaml`,
-  `cost.yaml`, `experiments/{e1,e1_served,e2,e3,e4,diagnostics,policy,rollback}.yaml`.
-- Serving/ops: `api.yaml`, `serving_validation.yaml`, `registry.yaml`,
-  `final_eval.yaml`, `verification.yaml`, `monitoring.yaml`, `load_test.yaml`.
-- Never hard-code paths/seeds/thresholds in code; add a config key instead.
-- Experiment rules are declared in config **before** running; changing one
-  after results exist requires a note in `docs/DECISIONS.md`.
-- Caution: config/SQL file hashes are bound into locks and provenance.
-  Do not edit configs or SQL cosmetically (comments included) without
-  checking what hashes them.
+- Features: `features.yaml` (groups and served set),
+  `features_application.yaml`.
+- Models and experiments: `model_lr.yaml`, `model_lgbm.yaml`,
+  `calibration.yaml`, `cost.yaml`,
+  `experiments/{e1,e1_served,e2,e3,e4,diagnostics,policy,rollback}.yaml`.
+- Serving and operations: `api.yaml`, `serving_validation.yaml`,
+  `registry.yaml`, `final_eval.yaml`, `verification.yaml`,
+  `monitoring.yaml`, `load_test.yaml`.
 
-## 6. SQL (`sql/`)
+Experiment decision rules are declared in config before running. Changing a
+rule after results exist requires a new entry in `docs/DECISIONS.md`.
 
-- `sql/features/{application,bureau,bureau_balance,previous,installments,pos_cash,credit_card}.sql`
-  — one file per source group; applicant-local aggregates only; explicit
-  ordering of floating SUM/AVG inputs (contract-1.1 determinism fix, D16).
-- `sql/validation/{history,raw_anomalies}.sql` — temporal/key validity checks.
-- Same SQL files run in batch (DuckDB over Parquet) and online (in-memory
-  DuckDB per request). Changing SQL requires the parity test.
+Config and SQL file hashes are bound into selection locks and provenance.
+Cosmetic edits to those files (including comments) change the hashes and
+invalidate existing locks, so they are treated as protocol changes.
 
-## 7. Tests (`tests/`, ~380 non-data tests)
+## SQL (`sql/`)
+
+- `sql/features/{application,bureau,bureau_balance,previous,installments,pos_cash,credit_card}.sql`:
+  one file per source group. Aggregates are applicant-local only, and
+  floating SUM/AVG inputs are explicitly ordered for deterministic results.
+- `sql/validation/{history,raw_anomalies}.sql`: temporal and key validity
+  checks.
+- The same SQL files run in batch (DuckDB over Parquet) and online
+  (in-memory DuckDB per request). Changing SQL requires the parity test.
+
+## Tests (`tests/`)
 
 | Layer | Path | Data |
 |---|---|---|
 | Unit | `tests/unit/` | Synthetic only |
 | Integration | `tests/integration/` | Synthetic end-to-end (API, lock/final-eval, monitoring, parity) |
 | Real data | `tests/data/`, `@pytest.mark.data` | Real `data/raw`; skipped in CI |
-| Fixtures | `tests/fixtures/synthetic.py` re-exports `risklab.synthetic` | — |
 
-Markers: `unit`, `integration`, `data`, `slow`. Leakage-relevant changes need
-a test that would fail if leakage were introduced. Gate: `make test`
-(ruff + format check + mypy + pytest non-`data`).
+Tests and CI use the synthetic generator, never real data. Leakage-relevant
+changes require a test that would fail if leakage were introduced. The full
+gate is `make test` (ruff, format check, mypy, and pytest without the `data`
+marker).
 
-## 8. Where to make a change (routing)
+## Implementation notes
 
-| Task | Start at | Must also check |
-|---|---|---|
-| New/changed feature | `sql/features/*.sql`, `features/`, `configs/features*.yaml` | Parity test, `docs/data_contract.md`, provenance hashes |
-| Cleaning rule | `data/clean.py`, `configs/cleaning.yaml` | Batch+API share it; parity test |
-| Model/hyperparams | `models/pipelines.py`, `configs/model_*.yaml`, experiment config | Declare rule before running; log run ID |
-| Metric | `models/evaluate.py` | `scripts/recompute_metrics.py` independent check |
-| API request/response | `api/schemas.py`, `api/contract.py`, `configs/api.yaml` | `docs/api_contract.md`, golden/parity tests, no payload logging |
-| Registry/promotion | `registry/` | Audit log, gate in `registry/gates.py`, never move aliases outside CLI |
-| Monitoring/alerts | `monitoring/`, `configs/monitoring.yaml` | Monitoring pool only; never train/select on it |
-| Anything touching Test | **Stop.** Only `models/final_eval.py` + explicit owner approval + recorded reuse acknowledgment | `docs/DECISIONS.md` D5/D18 |
-
-## 9. Commands
-
-Canonical table is in `AGENTS.md` §Commands. Everyday: `make setup`,
-`make test`, `uv run pytest -m data`, `make ingest|partition|validate`,
-`risklab e1|e2|e3|e4|diagnostics`, `risklab verify`,
-`risklab prepare-candidate|lock-selection|registry ...|monitoring ...`,
-`make reproduce OUT=DIR`, `docker compose up`.
-
-## 10. Gotchas learned the hard way
-
-- DuckDB typed CSV read silently rounds `2.5` → `3`; ingest casts from
-  all-VARCHAR with a regex guard (D8).
+- DuckDB typed CSV reads silently round `2.5` to `3`; ingest casts from
+  all-VARCHAR with a regex guard (`docs/DECISIONS.md` D8).
 - Unordered floating aggregates changed 9 Selection predictions across
-  processes (D16): SUM/AVG inputs are explicitly ordered; never remove that.
-- Kaggle `application_test` is **unlabeled** drift input, not the Test
-  partition. The AST guard in `tests/unit/test_loaders_isolation.py`
-  distinguishes them; keep the exact filename distinction.
+  processes (D16): SUM/AVG inputs are explicitly ordered.
+- The Kaggle `application_test` file is unlabeled drift input, not the Test
+  partition. A test guard keeps the two distinct.
 - `CODE_GENDER` is excluded as a feature but required by cleaning as a
-  `category_to_null` column; the API must not demand gender to clean.
-- OneHotEncoder treats `None` and `NaN` differently: Arrow→pandas conversion
-  lives in one shared `frame_from_table` used by batch and online paths.
-- Parquet bytes are not reproducible; raw SHA256 + row counts are the exact
+  `category_to_null` column; the API does not require gender to clean.
+- OneHotEncoder treats `None` and `NaN` differently: Arrow-to-pandas
+  conversion lives in one shared `frame_from_table` used by both the batch
+  and online paths.
+- Parquet bytes are not reproducible; raw SHA256 and row counts are the exact
   references. MLflow clients use `MLFLOW_TRACKING_URI` (HTTP server), never a
   direct `sqlite:///` URI.
-- `.env`/Kaggle credentials stay outside git; the API never logs payloads.
+- Secrets stay outside git, and the API never logs request payloads.

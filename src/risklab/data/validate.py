@@ -1,4 +1,4 @@
-"""Validation of the raw application tables (MASTER_PLAN Section 7).
+"""Validation of the raw application tables.
 
 Design decision: validation is SQL-driven over the ingested Parquet files with DuckDB, not
 Pandera/pandas, so no new dependency is needed and nothing is loaded into memory. The SQL is

@@ -1,4 +1,4 @@
-# E2: application-only vs added historical feature groups (MASTER_PLAN Section 6).
+# E2: application-only vs added historical feature groups.
 # Declared BEFORE the run. Serve a group only if its marginal ROC-AUC gain clears
 # min_gain with the paired-bootstrap CI lower bound above 0.
 experiment_name: risklab-e2-feature-groups

@@ -1,4 +1,4 @@
-"""Threshold and expected-cost analysis (MASTER_PLAN Section 5 step 4, E4)."""
+"""Threshold and expected-cost analysis (E4)."""
 
 from __future__ import annotations
 

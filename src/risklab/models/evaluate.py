@@ -1,4 +1,4 @@
-"""Metrics, paired bootstrap comparison and prediction files (MASTER_PLAN Section 6).
+"""Metrics, paired bootstrap comparison and prediction files.
 
 Headline metrics for the imbalanced target are ROC-AUC, PR-AUC (average precision), Brier score and
 log loss. Accuracy is deliberately not reported. Models are compared with a paired bootstrap: the
