@@ -10,9 +10,8 @@ monitors it for drift — with a leakage-safe experiment protocol throughout.
 This is a production-oriented demo, not a production credit-decisioning
 system. The `approve`/`review` output is illustrative.
 
-**Evidence page:** [docs/index.html](docs/index.html) — a static summary of the
-recorded results below. Open it in a browser, or serve the repository root
-with any static file server.
+**Evidence page:** [hoangisreal.github.io/RiskLab](https://hoangisreal.github.io/RiskLab/) — a static summary of the
+recorded results below (source: [docs/index.html](docs/index.html)).
 
 ## Results
 
@@ -33,7 +32,11 @@ On Selection, LightGBM beat Logistic Regression by +0.0132 ROC-AUC
 (95% CI [0.0091, 0.0174]) under a decision rule declared in config before
 the experiment ran. Historical sources were admitted the same way: bureau,
 previous-application, and installment features earned their place;
-bureau-balance, POS, and credit-card features did not.
+bureau-balance, POS, and credit-card features did not. A later challenger
+study (E5, descriptive) compared XGBoost (0.7744), CatBoost (0.7733) and
+HistGradientBoosting (0.7702) against the champion (0.7725): no challenger
+met the predeclared superiority rule, so the served model is unchanged.
+See [docs/RESULTS.md](docs/RESULTS.md) §9.
 
 ## How it works
 

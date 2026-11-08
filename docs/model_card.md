@@ -12,7 +12,7 @@ Gender is excluded. Age is retained under the declared policy; sensitive-attribu
 
 ## Selection evidence
 
-Repeated-family comparison run `53f3b77cf9724cad8450ac6a1cd2586c` prefers LightGBM over LR: ROC-AUC gain 0.013154, 95% paired CI [0.009109, 0.017429], exceeding the predeclared 0.005 minimum. Source-specific model runs are listed in [Results](RESULTS.md).
+Repeated-family comparison run `53f3b77cf9724cad8450ac6a1cd2586c` prefers LightGBM over LR: ROC-AUC gain 0.013154, 95% paired CI [0.009109, 0.017429], exceeding the predeclared 0.005 minimum. A post-lock challenger study (E5, comparison run `b6b7c0e8439c4c26967b3e3d5559747e`) found XGBoost at 0.774436 and CatBoost at 0.773261 Selection ROC-AUC against the champion's 0.772521, but neither met the predeclared superiority rule, so the served family is unchanged. Source-specific model runs are listed in [Results](RESULTS.md).
 
 | Current artifact, Selection | Value |
 |---|---:|

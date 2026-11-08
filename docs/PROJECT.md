@@ -95,6 +95,7 @@ These invariants are enforced in code and covered by tests:
 | `features/online.py`, `payload.py`, `parity.py` | Per-request features, API payload conversion, batch/API parity |
 | `experiments/e1.py` | E1: Logistic Regression vs LightGBM (plus `--served` repeat) |
 | `experiments/e234.py` | E2 sources, E3 calibration, E4 threshold runners |
+| `experiments/e5.py` | E5 post-lock challenger study (XGBoost/CatBoost/HistGB vs champion), config in `experiments/e5.yaml` outside the protocol-hashed tree |
 | `experiments/diagnostics.py`, `models/diagnostics.py` | Leakage diagnostics (permutation, single-feature screening) |
 | `models/pipelines.py` | Unfitted LR/LightGBM sklearn Pipelines |
 | `models/calibrate.py`, `threshold.py` | FrozenEstimator calibration; cost and threshold analysis |

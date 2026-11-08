@@ -188,3 +188,30 @@ Runs: application `bde0b31723554136ab4f1157b1f75fc8`, served
 Selection is reused for a small predeclared decision set, so Selection
 metrics are mildly optimistic; the locked Test estimate in §5 is the
 unbiased one. Published AUC benchmarks are context only (D7).
+
+## 9. E5 — challenger study (post-lock, descriptive)
+
+Declared before running in `experiments/e5.yaml` and `docs/DECISIONS.md`
+D21. XGBoost, CatBoost and HistGradientBoosting with fixed hyperparameters
+were fitted on Train and scored on Selection against the champion protocol
+(LightGBM refit with its E1-served CV outcome of 283 rounds; Logistic
+Regression refit at C=0.01). Challengers use the shared one-hot
+preprocessing; the champion uses its native categorical pipeline. This
+study sits outside the protocol-hashed `configs/` tree, so the frozen lock
+and served artifact are unchanged by it. Comparison run
+`b6b7c0e8439c4c26967b3e3d5559747e`; 1,000 paired resamples, 95% intervals.
+
+| Model (run) | ROC-AUC | PR-AUC | Brier | Log loss | Δ ROC-AUC vs champion [95% CI] | Fit (s) |
+|---|---:|---:|---:|---:|---:|---:|
+| LightGBM, champion (`b67b2d716f284e98bbe42c7052bc83ae`) | 0.772521 | 0.263679 | 0.066776 | 0.241557 | — | 7.6 |
+| XGBoost (`0b270bd3435445d0834d9f8508ac18d0`) | 0.774436 | 0.273807 | 0.066381 | 0.240377 | +0.001915 [−0.000767, +0.004753] | 68.1 |
+| CatBoost (`38619213ab144fa280efc86730080538`) | 0.773261 | 0.271473 | 0.066516 | 0.240955 | +0.000740 [−0.002134, +0.003641] | 21.9 |
+| HistGradientBoosting (`198869f6385041af85542a8ee5e6f394`) | 0.770225 | 0.263746 | 0.066803 | 0.242090 | −0.002296 [−0.004988, +0.000744] | 107.6 |
+| Logistic Regression (`9548b8472900454ab98542a34927dbb9`) | 0.759367 | 0.252196 | 0.067439 | 0.245145 | −0.013154 [−0.017429, −0.009109] | 12.2 |
+
+No challenger meets the predeclared flag rule (gain at least 0.005 with a
+positive interval lower bound). XGBoost is numerically ahead on every
+metric, but its ROC-AUC interval includes zero and the gain is below the
+declared minimum, so the champion and the served artifact stay unchanged.
+Challengers were not tuned; a tuned XGBoost comparison would be a new
+declared study, and any promotion would require a new selection cycle.
