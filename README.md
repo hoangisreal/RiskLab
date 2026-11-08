@@ -10,7 +10,7 @@ monitors it for drift — with a leakage-safe experiment protocol throughout.
 This is a production-oriented demo, not a production credit-decisioning
 system. The `approve`/`review` output is illustrative.
 
-**Evidence page:** [web/index.html](web/index.html) — a static summary of the
+**Evidence page:** [docs/index.html](docs/index.html) — a static summary of the
 recorded results below. Open it in a browser, or serve the repository root
 with any static file server.
 
