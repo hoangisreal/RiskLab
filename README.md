@@ -10,6 +10,28 @@ monitors it for drift — with a leakage-safe experiment protocol throughout.
 This is a production-oriented demo, not a production credit-decisioning
 system. The `approve`/`review` output is illustrative.
 
+## Product scope and implementation status
+
+The current repository implements the **ML/scoring foundation plus the local
+application/identity foundation**, not yet the analyst/manager review workflow.
+The agreed MVP is a credit-risk decision-support
+simulation: Analysts review and propose, Managers alone finalize simulated
+decisions, and Admins manage accounts without implicit business permissions.
+
+The target stack is **Next.js, FastAPI, PostgreSQL and a Python worker**, deployed
+on one Linux VPS with Docker Compose, Caddy HTTPS and GitHub Actions. This is a
+modular monolith, not microservices. Public demo data defaults to synthetic.
+The Next.js shell/login/Admin UI, PostgreSQL migrations, server sessions/RBAC and
+account audit run locally; import/scoring jobs, business review/decision and VPS
+delivery are **not implemented yet**. Follow the
+[application guide](docs/development/application.md) for web setup; the quick start
+below still runs the existing ML stack.
+
+Start with the [Vietnamese documentation guide](docs/README.md),
+[MVP PRD](docs/product/prd.md) and [acceptance criteria](docs/product/acceptance.md).
+Coding agents should read [AGENTS.md](AGENTS.md). Advanced dashboards, Kubernetes,
+Terraform, SSO and automated credit approval are outside this MVP.
+
 **Evidence page:** [hoangisreal.github.io/RiskLab](https://hoangisreal.github.io/RiskLab/) — a static summary of the
 recorded results below (source: [docs/index.html](docs/index.html)).
 
@@ -93,11 +115,15 @@ the environment or in ignored local files.
 
 | Document | Contents |
 |---|---|
-| [docs/PROJECT.md](docs/PROJECT.md) | Architecture, data flow, module and config map |
+| [docs/README.md](docs/README.md) | Reading guide; current implementation vs target MVP |
+| [docs/product/prd.md](docs/product/prd.md) | MVP scope and users; links to RBAC, workflow and acceptance |
+| [docs/architecture/overview.md](docs/architecture/overview.md) | Target modular-monolith architecture (not implemented) |
+| [docs/operations/deployment.md](docs/operations/deployment.md) | Target VPS delivery, security, CI/CD and backup links |
+| [docs/PROJECT.md](docs/PROJECT.md) | Current ML architecture, data flow, module and config map |
 | [docs/RESULTS.md](docs/RESULTS.md) | Accepted experiments, locked Test evidence, limitations |
 | [docs/model_card.md](docs/model_card.md) | Model card for the served artifact |
 | [docs/OPERATIONS.md](docs/OPERATIONS.md) | Setup, deployment, API, monitoring, reproduction |
-| [docs/DECISIONS.md](docs/DECISIONS.md) | Design decision log (D1–D19) with rationale |
+| [docs/DECISIONS.md](docs/DECISIONS.md) | Historical ML decisions and current MVP scope decisions |
 | [docs/PROGRESS.md](docs/PROGRESS.md) | Project status and follow-up investigations |
 | [docs/data_contract.md](docs/data_contract.md) | Raw data contract and validation rules |
 | [docs/api_contract.md](docs/api_contract.md) | API request/response contract 1.1 |

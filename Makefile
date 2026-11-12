@@ -59,3 +59,23 @@ e4:
 reproduce:
 	@test -n "$(OUT)" || (echo 'Set OUT to an absent or empty output directory'; exit 1)
 	uv run python scripts/reproduce.py --out "$(OUT)"
+
+.PHONY: app-init app-db app-migrate app-api app-web
+app-init:
+	uv run python scripts/init_application_dev.py
+
+app-db: app-init
+	docker compose -f deploy/compose.local.yml up -d --wait
+	uv run python scripts/provision_application_dev.py
+
+app-migrate:
+	env -u RISKLAB_DATABASE_URL RISKLAB_DATABASE_URL_FILE=.secrets/local_owner_url uv run alembic upgrade head
+
+app-api:
+	env -u RISKLAB_DATABASE_URL RISKLAB_DATABASE_URL_FILE=.secrets/local_api_url uv run uvicorn risklab.business.main:create_app --factory --host 127.0.0.1 --port 8000 --no-access-log
+
+app-worker:
+	env -u RISKLAB_DATABASE_URL RISKLAB_DATABASE_URL_FILE=.secrets/local_worker_url uv run risklab-worker
+
+app-web:
+	cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run dev

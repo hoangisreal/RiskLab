@@ -1,0 +1,120 @@
+# Production single-VPS stack (B06-T01). Only Caddy publishes ports.
+# Operator supplies pinned image digests via RISKLAB_API_IMAGE / RISKLAB_WEB_IMAGE
+# and secret files under ./secrets/prod (never committed). See docs/operations/deployment.md.
+name: risklab-production
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: risklab_migrator
+      POSTGRES_DB: risklab
+      POSTGRES_PASSWORD_FILE: /run/secrets/owner_password
+    volumes:
+      - application_db:/var/lib/postgresql/data
+      - ./postgres-roles.sql:/docker-entrypoint-initdb.d/00_roles.sql:ro
+    secrets: [owner_password]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U risklab_migrator -d risklab"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+    logging: &logging
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  migrate:
+    image: ${RISKLAB_API_IMAGE:?Set RISKLAB_API_IMAGE to a pinned digest}
+    build: { context: .., target: migrate }
+    environment:
+      RISKLAB_DATABASE_URL_FILE: /run/secrets/migrator_url
+    secrets: [migrator_url]
+    depends_on: { postgres: { condition: service_healthy } }
+    restart: "no"
+    logging: *logging
+
+  api:
+    image: ${RISKLAB_API_IMAGE:?Set RISKLAB_API_IMAGE to a pinned digest}
+    build: { context: .., target: business }
+    environment:
+      RISKLAB_ENVIRONMENT: production
+      RISKLAB_DATABASE_URL_FILE: /run/secrets/api_url
+      RISKLAB_ORIGIN: ${RISKLAB_ORIGIN:?Set the public HTTPS origin}
+      RISKLAB_STORAGE_ROOT: /app/data/application/objects
+      RISKLAB_CATALOG_FILE: /app/release/catalog.json
+      RISKLAB_CATALOG_SHA256: ${RISKLAB_CATALOG_SHA256:-}
+      RISKLAB_RELEASE_FILE: /app/release/release.json
+      RISKLAB_MODEL_FILE: /app/release/model.pkl
+      RISKLAB_COMPARISON_FILE: /app/release/comparison.json
+      RISKLAB_CONFIG_DIR: /app/configs
+      RISKLAB_APP_ROOT: /app
+    volumes:
+      - application_objects:/app/data/application/objects
+      - release_bundle:/app/release:ro
+    secrets: [api_url]
+    depends_on:
+      postgres: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    restart: unless-stopped
+    logging: *logging
+
+  worker:
+    image: ${RISKLAB_API_IMAGE:?Set RISKLAB_API_IMAGE to a pinned digest}
+    build: { context: .., target: worker }
+    environment:
+      RISKLAB_ENVIRONMENT: production
+      RISKLAB_DATABASE_URL_FILE: /run/secrets/worker_url
+      RISKLAB_ORIGIN: ${RISKLAB_ORIGIN:?Set the public HTTPS origin}
+      RISKLAB_STORAGE_ROOT: /app/data/application/objects
+      RISKLAB_CATALOG_FILE: /app/release/catalog.json
+      RISKLAB_CATALOG_SHA256: ${RISKLAB_CATALOG_SHA256:-}
+      RISKLAB_RELEASE_FILE: /app/release/release.json
+      RISKLAB_MODEL_FILE: /app/release/model.pkl
+      RISKLAB_CONFIG_DIR: /app/configs
+      RISKLAB_APP_ROOT: /app
+    volumes:
+      - application_objects:/app/data/application/objects
+      - release_bundle:/app/release:ro
+    secrets: [worker_url]
+    depends_on:
+      postgres: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    restart: unless-stopped
+    logging: *logging
+
+  web:
+    image: ${RISKLAB_WEB_IMAGE:?Set RISKLAB_WEB_IMAGE to a pinned digest}
+    build: { context: ../apps/web }
+    environment:
+      RISKLAB_API_ORIGIN: http://api:8000
+      HOSTNAME: 0.0.0.0
+      PORT: "3000"
+    depends_on: [api]
+    restart: unless-stopped
+    logging: *logging
+
+  caddy:
+    image: caddy:2-alpine
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:?Set the public domain}
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [web, api]
+    restart: unless-stopped
+    logging: *logging
+
+volumes:
+  application_db:
+  application_objects:
+  release_bundle:
+  caddy_data:
+  caddy_config:
+
+secrets:
+  owner_password: { file: ./secrets/prod/owner_password }
+  migrator_url: { file: ./secrets/prod/migrator_url }
+  api_url: { file: ./secrets/prod/api_url }
+  worker_url: { file: ./secrets/prod/worker_url }

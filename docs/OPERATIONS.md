@@ -1,5 +1,12 @@
 # RiskLab — Operations
 
+**Scope: existing local ML/scoring stack.** These commands do not deploy the
+planned authenticated web application. For the target MVP see the
+[VPS deployment plan](operations/deployment.md) and
+[backup/restore plan](operations/backup-restore.md), both not yet implemented.
+The current localhost API/MLflow configuration must not be exposed as a public
+demo without the new authorization and infrastructure controls.
+
 Procedures for setup, selection, locking, serving, monitoring, and
 reproduction. Architecture: `docs/PROJECT.md`. Frozen values:
 `docs/DECISIONS.md`. Never open Test from anything in this file except the

@@ -21,6 +21,16 @@ build/
 
 # Secrets
 .env
+.env.*
+!.env.example
+/.secrets/
+
+# Application frontend dependencies and generated output
+node_modules/
+.next/
+*.tsbuildinfo
+playwright-report/
+test-results/
 
 # Notebooks
 .ipynb_checkpoints/

@@ -1,4 +1,13 @@
-# RiskLab — Architecture
+# RiskLab — Current ML Architecture
+
+This document describes the **implemented ML/scoring foundation**, not the
+planned business application. The agreed MVP architecture is documented separately
+in [architecture/overview.md](architecture/overview.md); scope, roles and workflow
+are in [product/prd.md](product/prd.md). Next.js shell/login/Admin UI, PostgreSQL
+identity migrations and account/RBAC management now have a separate
+[local application guide](development/application.md). Application import,
+review/decision and worker orchestration are not implemented yet.
+See [README.md](README.md) for the documentation reading guide.
 
 RiskLab estimates the probability that a loan applicant will have payment
 difficulties (`TARGET`) on the Home Credit Default Risk dataset. It compares
@@ -10,7 +19,9 @@ RiskLab is a production-oriented demo, not a production credit-decisioning
 system. The `approve`/`review` output is illustrative. Limitations are listed
 in `docs/RESULTS.md` §8.
 
-All code, comments, documentation, and commit messages are in English.
+New human-facing guides are Vietnamese; code, technical comments, docstrings and
+agent instructions are English. The portfolio README and historical ML evidence
+remain English (D24 in [DECISIONS.md](DECISIONS.md)).
 
 ## Frozen state
 

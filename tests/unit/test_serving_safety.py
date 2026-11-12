@@ -119,6 +119,28 @@ def test_registry_load_rejects_bad_bundle_without_swap(monkeypatch, bundle, chan
     assert store.current is old
 
 
+def test_protocol_mismatch_is_rejected_before_artifact_loading(monkeypatch, bundle):
+    import mlflow.sklearn
+
+    from risklab.api.model_store import ModelStoreError
+    from risklab.registry import client
+
+    monkeypatch.setattr(client, "resolve_champion", lambda: {"version": "2", "run_id": "new-run"})
+    monkeypatch.setattr(client, "read_serving_config", lambda info: bundle)
+    profile_reader = Mock()
+    model_loader = Mock()
+    monkeypatch.setattr(client, "read_reference_profile", profile_reader)
+    monkeypatch.setattr(mlflow.sklearn, "load_model", model_loader)
+    store = ModelStore()
+    old = LoadedModel("1", object(), 0.1, "1.1", [])
+    store.swap(old)
+    with pytest.raises(ModelStoreError, match="differs from this serving image"):
+        load_from_registry(store, expected_protocol={"changed-source": "a" * 64})
+    assert store.current is old
+    profile_reader.assert_not_called()
+    model_loader.assert_not_called()
+
+
 def test_promote_requires_gate_and_force_reason(monkeypatch, tmp_path):
     import risklab.cli as cli
     from risklab.registry import client

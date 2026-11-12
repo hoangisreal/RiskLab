@@ -1,0 +1,10 @@
+{
+  "contract_version": "1.1",
+  "application": {"AMT_INCOME_TOTAL": 180000, "AMT_CREDIT": 450000},
+  "history": {
+    "bureau": {"status": "provided", "records": [{"bureau_ref": "b1", "DAYS_CREDIT": 10}]},
+    "previous_applications": {"status": "provided", "records": []},
+    "installments": {"status": "provided", "records": []}
+  },
+  "explain": true
+}

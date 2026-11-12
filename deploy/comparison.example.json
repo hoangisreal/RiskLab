@@ -1,0 +1,29 @@
+{
+  "report_version": "docs-results-e1-served-2026-11-08",
+  "partition_hash": "b26bba642ca01b6240cd5f38f21cd0e546b5f975f3ce99cf847eb8f3f35a9101",
+  "provenance": "Recorded Selection comparison from docs/RESULTS.md (E1 repeated on the served set). Copy to the operator comparison file only after checking run identity; the API never computes metrics on GET.",
+  "models": [
+    {
+      "family": "LogisticRegression",
+      "model_run_id": "bb0de338703f49ee9d048a67f4b216d5",
+      "partition_role": "selection",
+      "metrics": {
+        "roc_auc": 0.759367,
+        "pr_auc": 0.252196,
+        "brier": 0.067439,
+        "log_loss": 0.245145
+      }
+    },
+    {
+      "family": "LightGBM",
+      "model_run_id": "4e46b91eca76426396e82828fa7b3b1e",
+      "partition_role": "selection",
+      "metrics": {
+        "roc_auc": 0.772521,
+        "pr_auc": 0.263679,
+        "brier": 0.066776,
+        "log_loss": 0.241557
+      }
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "catalog_version": "synthetic-b00-v1",
+  "provenance": "Hand-authored synthetic examples; no Kaggle rows or real applicants.",
+  "feature_contract_version": "1.1",
+  "required_groups": ["bureau", "previous", "installments"],
+  "snapshots": {
+    "demo-history": {
+      "contract_version": "1.1",
+      "application": {
+        "AMT_INCOME_TOTAL": 180000,
+        "AMT_CREDIT": 450000,
+        "AMT_ANNUITY": 24000,
+        "DAYS_BIRTH": -12000,
+        "DAYS_EMPLOYED": -1800,
+        "NAME_CONTRACT_TYPE": "Cash loans"
+      },
+      "history": {
+        "bureau": {
+          "status": "provided",
+          "records": [{"bureau_ref": "b1", "DAYS_CREDIT": -400, "CREDIT_ACTIVE": "Active", "AMT_CREDIT_SUM_DEBT": 12000}]
+        },
+        "previous_applications": {
+          "status": "provided",
+          "records": [{"prev_ref": "p1", "DAYS_DECISION": -500, "AMT_CREDIT": 50000, "AMT_APPLICATION": 50000, "NAME_CONTRACT_STATUS": "Approved"}]
+        },
+        "installments": {
+          "status": "provided",
+          "records": [{"prev_ref": "p1", "NUM_INSTALMENT_VERSION": 1, "NUM_INSTALMENT_NUMBER": 1, "DAYS_INSTALMENT": -300, "DAYS_ENTRY_PAYMENT": -302, "AMT_INSTALMENT": 5000, "AMT_PAYMENT": 5000}]
+        }
+      },
+      "explain": true
+    },
+    "demo-no-history": {
+      "contract_version": "1.1",
+      "application": {"AMT_INCOME_TOTAL": 160000, "AMT_CREDIT": 300000},
+      "history": {
+        "bureau": {"status": "provided", "records": []},
+        "previous_applications": {"status": "provided", "records": []},
+        "installments": {"status": "provided", "records": []}
+      },
+      "explain": true
+    },
+    "demo-missing-history": {
+      "contract_version": "1.1",
+      "application": {"AMT_INCOME_TOTAL": 160000, "AMT_CREDIT": 300000},
+      "history": {
+        "bureau": {"status": "not_provided", "records": []},
+        "previous_applications": {"status": "provided", "records": []},
+        "installments": {"status": "provided", "records": []}
+      },
+      "explain": true
+    }
+  }
+}

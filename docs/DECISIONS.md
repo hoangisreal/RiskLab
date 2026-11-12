@@ -1,7 +1,8 @@
 # RiskLab — Decisions Log (canonical)
 
-Single source for frozen decisions. `docs/PROJECT.md` holds the resulting
-frozen state and the design invariants derived from these decisions.
+Single source for ML and product decisions. [PROJECT.md](PROJECT.md) holds the
+recorded ML state; [product/prd.md](product/prd.md) defines the target MVP.
+Product decisions marked as specifications are not implemented capabilities.
 Changing a decision requires a new entry here and re-running whatever the
 decision invalidates. Experiment rules are set in config **before** running.
 
@@ -48,6 +49,29 @@ decision invalidates. Experiment rules are set in config **before** running.
 | D20 | 2026-11-08 | Comment-only cleanup of protocol-hashed configs and sources (removal of internal working-plan references) invalidated lock `402b9e050159762d` by hash. The owner approved a full re-lock: the Selection protocol was re-run unchanged, reproduced every metric exactly, and produced the identical artifact SHA256 `f5e4d127174bde337f03ed14d47ba050efe6f45ba4c599d0e6e558a256b0d676`. New lock `17b83143e33bb907` was registered as version 7 and evaluated on Test with explicit reuse approval (run `50d36f3b142a41039ff4d72967242f9a`, third opening total, identical metrics). | `reports/locks/17b83143e33bb907.json`, registry v7 |
 
 | D21 | 2026-11-08 | E5 challenger study, declared before running: XGBoost, CatBoost and HistGradientBoosting with fixed hyperparameters from `experiments/e5.yaml` are refitted on Train and scored on Selection against the frozen LightGBM champion protocol (champion refit with its E1-served CV outcome, 283 rounds; LR refit at C=0.01). Primary metric ROC-AUC, 1,000 paired bootstraps; a challenger is flagged superior only if gain ≥ 0.005 and the interval lower bound is above 0. The study is descriptive and outside the serving protocol surface (config in `experiments/`, not `configs/`), so it cannot invalidate lock `17b83143e33bb907`; the served artifact does not change whatever the outcome. Outcome: no challenger flagged (XGBoost +0.001915 [−0.000767, +0.004753], CatBoost +0.000740, HistGradientBoosting −0.002296 vs champion 0.772521; comparison run `b6b7c0e8439c4c26967b3e3d5559747e`), so LightGBM remains the served family. A flagged win only justifies proposing a new selection cycle. | `experiments/e5.yaml`, `src/risklab/experiments/e5.py` |
+
+## MVP decisions (2026-11-10; specifications, not shipped features)
+
+Các quyết định sau bổ sung phạm vi sản phẩm, không thay đổi artifact/metrics ML
+đã đóng băng. Lịch sử D1–D21 được giữ nguyên.
+
+| ID | Quyết định | Hệ quả / nguồn chuẩn |
+|---|---|---|
+| D22 | Analyst chỉ review/ghi chú/đề xuất; Manager duy nhất chốt quyết định mô phỏng; Admin quản lý tài khoản/role. Áp dụng server-side RBAC, object access, separation of duties và audit | [RBAC](product/rbac.md), [workflow](product/workflow.md). Không có Analyst self-approval hoặc Admin business superuser |
+| D23 | Một VPS Linux, Next.js + FastAPI + PostgreSQL + Python worker, Docker Compose, Caddy HTTPS và GitHub Actions. Storage/config abstraction nhỏ để chuyển managed PostgreSQL/S3 sau | [Architecture](architecture/overview.md), [deployment](operations/deployment.md). Không Kubernetes/Terraform/microservices; thay lựa chọn Vite trong thảo luận trước |
+| D24 | Docs hướng dẫn mới bằng tiếng Việt; code/identifier/docstring/comment kỹ thuật/agent instructions bằng tiếng Anh. Portfolio README và evidence lịch sử giữ tiếng Anh | Thay D4 cho docs mới; [documentation guide](README.md), [AGENTS.md](../AGENTS.md). Không rewrite bằng chứng ML để dịch |
+| D25 | Thu scope về MVP: local accounts/server sessions, PostgreSQL-backed worker jobs, basic workload/model reports; chưa OIDC/Redis/Celery/Advanced UI | [PRD](product/prd.md), [acceptance](product/acceptance.md). Web MVP thay phạm vi UI hạn chế của D1/D18, không mở rộng quyền mở Test |
+| D26 | Public demo mặc định synthetic-only; anonymized data cần kiểm tra quyền phân phối/tái nhận dạng. Backup ngoài VPS, secrets, health/logs và restore drill là yêu cầu nghiệm thu | [Deployment](operations/deployment.md), [backup/restore](operations/backup-restore.md). Không publish raw Kaggle/row reports; không tuyên bố deployment hoặc restore đã pass |
+
+## B00 contract decision (2026-11-11)
+
+| ID | Quyết định | Hệ quả / nguồn chuẩn |
+|---|---|---|
+| D27 | MVP CSV chọn snapshot từ versioned trusted synthetic catalog, không upload raw history/feature matrix hoặc model/path/URL tùy ý. Business namespace `/api/v1`, import version `demo-import/1`, ML feature contract 1.1 độc lập nhau | [Business API specification](business_api_contract.md), [import specification](demo_import_contract.md). B00 kiểm tra raw-schema/shared-SQL fixtures; production import/auth/review endpoints vẫn chưa triển khai. Bounds demo là design caps, phải kiểm tra tài nguyên/biên trong B03/B06 |
+
+Cho phép train lại khi refactor cần thiết, nhưng phải tạo version/evidence riêng.
+Không sửa lock/reference cũ, bỏ integrity checks hoặc dùng metrics cũ như kết quả
+của pipeline mới. Quyền train lại **không** bao gồm quyền mở lại Test.
 
 ## Standing policies
 

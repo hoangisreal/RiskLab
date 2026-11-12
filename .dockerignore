@@ -3,6 +3,11 @@
 .aws
 .kaggle
 .env
+.env.*
+.secrets
+node_modules
+.next
+presentation
 __pycache__
 .pytest_cache
 .mypy_cache

@@ -1,0 +1,4 @@
+external_reference,snapshot_id,supersedes_application_id
+DEMO-001,demo-history,
+DEMO-002,demo-no-history,
+DEMO-003,demo-missing-history,

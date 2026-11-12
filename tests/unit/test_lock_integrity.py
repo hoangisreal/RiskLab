@@ -33,13 +33,17 @@ def lock_env(tmp_path, monkeypatch):
     return tmp_path, lock
 
 
-@pytest.mark.parametrize("change", ["dirty", "runtime", "sql", "artifact", "config"])
+@pytest.mark.parametrize("change", ["dirty", "commit", "runtime", "sql", "artifact", "config"])
 def test_changed_lock_context_is_rejected(lock_env, monkeypatch, change):
     root, lock = lock_env
     select.verify_lock(lock, root=root)
     if change == "dirty":
         monkeypatch.setattr(
             select, "git_info", lambda cwd=None: {"commit": "commit", "dirty": True}
+        )
+    elif change == "commit":
+        monkeypatch.setattr(
+            select, "git_info", lambda cwd=None: {"commit": "different-commit", "dirty": False}
         )
     elif change == "runtime":
         monkeypatch.setattr(select, "library_versions", lambda: {"python": "wrong"})
@@ -50,6 +54,17 @@ def test_changed_lock_context_is_rejected(lock_env, monkeypatch, change):
     else:
         lock["config"] = {"changed": True}
     with pytest.raises(select.SelectionError):
+        select.verify_lock(lock, root=root)
+
+
+def test_new_business_yaml_inside_configs_changes_protocol_but_docs_do_not(lock_env):
+    root, lock = lock_env
+    (root / "README.md").write_text("New product documentation\n")
+    assert select.protocol_hashes(root) == lock["protocol_hashes"]
+    # Even unrelated application settings enter the legacy recursive YAML hash surface.
+    (root / "configs/business.yaml").write_text("page_size: 20\n")
+    assert select.protocol_hashes(root) != lock["protocol_hashes"]
+    with pytest.raises(select.SelectionError, match="current protocol"):
         select.verify_lock(lock, root=root)
 
 

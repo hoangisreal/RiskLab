@@ -1,5 +1,10 @@
 # Data contract
 
+This document describes the existing ML/raw-data contract and historical counts.
+The separate [demo import contract](demo_import_contract.md) specifies the future
+synthetic catalog/CSV workflow. Its fixtures do not modify the raw data contract
+or authorize publication of Kaggle rows.
+
 Status: accepted. Counts below were computed once from the real Parquet files; automated enforcement is implemented in `risklab validate` / `validate-history` (see §Validation). Treat code + configs as the executable contract; this file explains them.
 
 Sources of the numbers:

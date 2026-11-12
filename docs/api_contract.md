@@ -1,5 +1,11 @@
 # API contract
 
+## Scope: existing scoring API
+
+This is the implemented scoring contract, not the planned authenticated business
+API. The admin key on model reload is **not** account authentication, RBAC or a
+Manager approval permission. The current public response semantics remain unchanged.
+
 Contract **1.1** uses raw application fields and applicant-local history. The current E2 decision consumes `bureau`, `previous_applications` and `installments`. `/models/current` is authoritative for a pinned deployment's groups, columns, cost assumptions, Selection run and lock. Contract-1.0 registry entries cannot load in this API image.
 
 | Endpoint | Behavior |
@@ -40,3 +46,26 @@ Explanations contain the base model's raw log odds, base value and largest origi
 Bundles require `serving_config.json`, an immutable aggregate `reference_profile.json`, a model card, compatible runtime/input columns, full parity evidence and a content-bound selection lock. The profile's exact bytes, feature list, model hash, contract and Selection aggregates are checked before loading. Reload failure returns 502 and preserves the prior model. A diagnostic rollback artifact is identified by `purpose=rollback_demo_only`.
 
 `final_evaluation` contains cached aggregate Test metrics, confidence intervals, row count, evaluation run/lock IDs and total Test openings for the exact loaded bundle. It is `null` without a complete matching lock/report/journal record, including legacy reports without their own evaluation run. Reading this metadata never evaluates Test or reads row predictions. `registered_at_ms` is the registry creation timestamp in Unix milliseconds. `feature_schema_hash` hashes the contract version, ordered input columns and served groups; `protocol_hashes` separately exposes config/SQL/implementation hashes. Test results are reporting evidence and never participate in the Selection promotion gate.
+
+## Ranh giới API nghiệp vụ MVP — triển khai một phần
+
+- Contracts cụ thể ở [business API v1](business_api_contract.md) và
+  [demo import](demo_import_contract.md), kèm fixtures synthetic được kiểm tra với
+  raw schema/shared SQL. B01/B02 đã có auth/account/health endpoints; import/review/
+  decision chưa triển khai. Xem [application guide](development/application.md).
+- API nghiệp vụ tương lai có namespace version riêng (dự kiến `/api/v1`), account
+  authentication, object authorization, state/revision guards và audit theo
+  [RBAC](product/rbac.md), [workflow](product/workflow.md). Chưa công bố endpoint
+  hoặc schema chưa có implementation như một contract đang hoạt động.
+- Model recommendation `approve/review` là tín hiệu minh họa, không phải đề xuất
+  Analyst hoặc human decision. Không đổi semantics/rename field của contract 1.1
+  âm thầm; consumer cũ cần compatibility tests và migration note khi có thay đổi.
+- Chỉ Manager chốt quyết định mô phỏng; business API phải tham chiếu persisted
+  prediction và immutable review, không gọi `/predict` rồi tự tạo approval.
+- UI đọc prediction metadata đã lưu, không dùng `/models/current` để suy ra model
+  từng dùng cho mọi hồ sơ. Model reload không sửa lịch sử prediction/decision.
+- Trước public deployment, legacy predict/monitoring/admin routes phải được giữ
+  private hoặc bảo vệ bằng authorization thích hợp; không tạo đường vòng qua
+  Caddy hoặc direct port để bỏ RBAC. Admin account không mặc nhiên có quyền reload model.
+- API namespace version và ML feature `contract_version` là hai version độc lập.
+  Thay HTTP auth/route không được bỏ serving bundle integrity hoặc parity checks.

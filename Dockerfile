@@ -22,3 +22,19 @@ FROM base AS api
 USER risklab
 EXPOSE 8000
 CMD ["/app/.venv/bin/uvicorn", "risklab.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+# Business application image: same codebase, different entrypoints (B06-T01).
+FROM base AS business
+COPY migrations/ migrations/
+COPY alembic.ini ./
+USER risklab
+EXPOSE 8000
+HEALTHCHECK --interval=15s --timeout=5s --retries=5 \
+  CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health/live')"]
+CMD ["/app/.venv/bin/uvicorn", "risklab.business.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]
+
+FROM business AS worker
+CMD ["/app/.venv/bin/risklab-worker"]
+
+FROM business AS migrate
+CMD ["/app/.venv/bin/alembic", "upgrade", "head"]

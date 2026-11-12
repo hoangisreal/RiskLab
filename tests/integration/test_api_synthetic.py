@@ -173,3 +173,73 @@ def test_declared_and_chunked_body_limits_and_metadata_only_logs(client, monkeyp
     assert "payload-must-not-be-logged" not in caplog.text
     assert "model_version" in caplog.text
     assert response.headers["x-request-id"] == response.json()["request_id"]
+
+
+def test_request_keeps_model_snapshot_during_concurrent_reload(client, monkeypatch):
+    import risklab.api.main as api_main
+    from risklab.api.model_store import LoadedModel
+
+    http, _ = client
+    store = http.app.state.store
+    original = store.current
+    replacement = LoadedModel("replacement", original.model, 1.0, "1.1", [])
+
+    def reload_during_validation(history, groups):
+        store.swap(replacement)
+
+    monkeypatch.setattr(api_main, "validate_history_records", reload_during_validation)
+    payload = {"application": {"AMT_CREDIT": 100000, "AMT_INCOME_TOTAL": 100000}}
+    try:
+        response = http.post("/predict", json=payload)
+        assert response.status_code == 200, response.text
+        assert response.json()["model_version"] == original.version
+        assert response.json()["threshold"] == original.threshold
+        assert store.current is replacement
+        subsequent = http.post("/predict", json=payload)
+        assert subsequent.status_code == 200, subsequent.text
+        assert subsequent.json()["model_version"] == "replacement"
+        assert subsequent.json()["threshold"] == 1.0
+    finally:
+        store.swap(original)
+
+
+@pytest.mark.parametrize(
+    "delta,recommendation", [(-0.001, "approve"), (0.0, "review"), (0.001, "review")]
+)
+def test_legacy_prediction_wire_contract_and_threshold_boundary(
+    client, monkeypatch, delta, recommendation
+):
+    import numpy as np
+
+    import risklab.api.service as service
+
+    http, _ = client
+    threshold = http.app.state.store.current.threshold
+    monkeypatch.setattr(
+        service, "predict_proba", lambda model, frame: np.array([threshold + delta])
+    )
+    response = http.post(
+        "/predict",
+        json={
+            "request_id": "synthetic-contract-check",
+            "application": {"AMT_CREDIT": 100000, "AMT_INCOME_TOTAL": 100000},
+        },
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert set(body) == {
+        "request_id",
+        "model_version",
+        "contract_version",
+        "probability",
+        "threshold",
+        "recommendation",
+        "sources_used",
+        "warnings",
+        "explanation",
+    }
+    assert body["request_id"] == response.headers["x-request-id"] == "synthetic-contract-check"
+    assert body["contract_version"] == "1.1"
+    assert body["recommendation"] == recommendation
+    assert body["probability"] == threshold + delta
+    assert body["explanation"] is None
