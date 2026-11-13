@@ -1,6 +1,9 @@
 # Infrastructure và deployment plan — MVP
 
-**Trạng thái:** đặc tả mục tiêu, chưa có production Compose/Caddy/deploy workflow.
+**Trạng thái:** đã có Compose/Caddy, images và CI local; chưa deploy VPS.
+`scripts/deploy.sh` hỗ trợ preflight read-only theo manifest v2; `--execute` dừng với exit 2 vì chưa có
+quy trình tự động áp manifest/backup/maintenance đã nghiệm thu. Không coi health
+của release cũ là deploy thành công. Kết quả: [PROGRESS](../PROGRESS.md).
 `docker-compose.yml` hiện tại chỉ chạy MLflow, scoring API và training jobs local;
 không sử dụng nó như cấu hình public demo đã được harden.
 Lệnh chạy hiện có nằm tại [OPERATIONS.md](../OPERATIONS.md).
@@ -45,6 +48,10 @@ không tuyên bố HA hoặc zero-downtime deployment.
   backup encryption và quyền truy cập vẫn phải được quản lý.
 - DB runtime credentials khác migration credentials. Deploy SSH credential nằm
   trong GitHub environment secrets; quyền truy cập host vẫn là đặc quyền cao.
+- `deploy/secrets/` và `.secrets/` không vào Git hoặc root Docker context.
+  Frontend có `.dockerignore` riêng để loại `.env*`, `.secrets`, dependencies,
+  build cache và browser traces trước `COPY . .`; không suy từ `.gitignore` rằng
+  Docker tự loại các file này. Ignore rules không thay quyền filesystem/secrets policy.
 - Runbook rotation phải bao gồm thay secret, restart có kiểm soát, thu hồi credential
   cũ và session liên quan; không public Admin bootstrap password.
 
@@ -58,8 +65,8 @@ không tuyên bố HA hoặc zero-downtime deployment.
 | PostgreSQL readiness | DB nhận connection |
 | Worker heartbeat/model readiness | Worker còn tiến triển và model hợp lệ |
 
-Đường dẫn health cụ thể sẽ được đưa vào API contract khi triển khai; đây không
-phải các endpoints đã tồn tại. Health public không lộ connection strings hoặc
+API hiện có `/api/v1/health/live` và `/api/v1/health/ready`; readiness kiểm tra DB/schema,
+không chứng minh worker/model sẵn sàng. Worker có job heartbeat nhưng chưa có endpoint readiness riêng. Health public không lộ connection strings hoặc
 metadata nhạy cảm. Worker lỗi vẫn có thể cho đọc hồ sơ; UI phải báo scoring
 unavailable/pending, không tạo thành công giả. Healthcheck không tự thay thế cơ chế
 worker recovery hoặc restart khi process không thoát.
@@ -71,8 +78,8 @@ password, cookies, token hoặc header secrets. Bounded retention/rotation trán
 
 ## 5. CI/CD mục tiêu
 
-CI hiện tại chỉ kiểm tra Python. Bổ sung theo tiến độ code thực tế, không tạo
-test/build placeholders rồi coi chúng là đã pass:
+CI config đã có Python, PostgreSQL, frontend và browser E2E. Hosted run và release
+pipeline chưa được kiểm chứng; quy trình release dưới đây cần operator thực hiện:
 
 1. PR: Python lint/typecheck/tests, PostgreSQL integration/migrations, frontend
    lint/typecheck/build và synthetic E2E cho các vai trò.
@@ -109,7 +116,93 @@ tái nhận dạng trước. Scoring input không chứa `TARGET`.
 
 Không public Admin credential; demo Analyst/Manager nếu chia sẻ phải giới hạn trên
 synthetic data và có caps tài nguyên. Không đưa legacy unauthenticated scoring,
-monitoring, reload API trực tiếp qua Caddy. Đây là requirement triển khai, không
-phải bảo vệ đã có sẵn trong source hiện tại.
+monitoring, reload API trực tiếp qua Caddy. Caddy config đã chặn legacy routes; network/TLS phải kiểm chứng trên VPS thật.
 
 Nghiệm thu vận hành: [AC-17–AC-21](../product/acceptance.md).
+
+## 8. Preflight và thao tác operator
+
+```bash
+# Chỉ kiểm tra template; output ghi EXAMPLE ONLY, không là release candidate.
+bash scripts/deploy.sh --dry-run --example
+
+# Thay bằng paths/origin của release do operator cung cấp, không dùng secrets làm argv.
+RELEASE_MANIFEST=/secure/releases/candidate/manifest.json \
+RELEASE_DIR=/secure/releases/candidate/bundle \
+BACKUP_ROOT=/secure/backups \
+RISKLAB_ORIGIN=https://risklab.example SITE_ADDRESS=risklab.example \
+RISKLAB_TRUSTED_PROXY_IPS=172.30.0.10 \
+  bash scripts/deploy.sh --dry-run
+```
+
+`RISKLAB_TRUSTED_PROXY_IPS` là IP/CIDR peer Caddy do operator xác minh trong
+Docker network thực tế. Giá trị trong ví dụ cần thay bằng peer đúng của môi trường.
+Compose truyền thành `FORWARDED_ALLOW_IPS` cho Uvicorn. Preflight từ chối wildcard
+và CIDR toàn Internet. API chỉ nhận forwarded client IP từ peer được tin cậy để
+rate-limit theo client; peer khác vẫn dùng địa chỉ socket. Caddy mặc định tạo
+forwarded headers và bỏ giá trị incoming không tin cậy. Kiểm tra hai client qua
+Caddy thực trong B07. [Uvicorn settings](https://uvicorn.dev/settings/),
+[Caddy reverse_proxy](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy).
+
+Preflight dùng Python standard library và Docker Compose CLI, không cần load model
+hoặc truy cập database/SSH. Chạy từ thư mục khác vẫn dùng đúng Compose của repo.
+Docker Compose CLI thiếu hoặc lỗi là **failure**, không bỏ qua. Output Compose được
+capture để không in environment/diagnostic có thể chứa thông tin nhạy cảm.
+
+- `risklab-release/2` yêu cầu đúng các field trong
+  [manifest mẫu](../../deploy/release-manifest.example.json). Ngoài model/catalog,
+  manifest pin cả SHA256 của `release.json` (threshold/policy/protocol/runtime metadata)
+  và `comparison.json`. V1 bị reject rõ ràng vì chưa bind hai file này; không sửa
+  historical lock/bundle để ép tương thích. Đây là version của deployment manifest,
+  không đổi scoring contract 1.1 hoặc ML selection protocol.
+  Manifest là input operator tin cậy; checksum chứng minh bytes khớp input này,
+  không tự chứng minh người phát hành/registry đáng tin hoặc artifact an toàn.
+- Manifest thật không nhận all-zero hashes hoặc image/model placeholder. Không có
+  `--example`, template mặc định **exit 2** thay vì báo một release giả đã hợp lệ.
+- `api`, `worker`, `migrate` phải render đúng API image digest; `web` đúng web digest;
+  catalog checksum đúng manifest, migration/worker command đúng entrypoint, các
+  service khác Caddy không publish port, không dùng host networking; Caddy chỉ
+  publish TCP 80/443. Không dùng image mẫu thay manifest thật.
+- Compose được render bằng `--env-file /dev/null`, `-f` và project directory cố
+  định; ambient `COMPOSE_*` bị loại, image/catalog env được lấy từ manifest. Không
+  dùng `.env` ngoài ý muốn hoặc override file để thay nội dung đang kiểm tra.
+- `RELEASE_DIR` nếu có phải chứa `model.pkl`, `catalog.json`, `release.json`,
+  `comparison.json`: kiểm tra từng checksum và đối chiếu model/catalog/feature
+  contract identity. Không deserialize pickle. Symlink inputs/ancestors bị từ chối.
+- `BACKUP_ROOT` nếu có phải có ít nhất một bản hoàn chỉnh, inventory/checksum đúng,
+  dump không rỗng, backup ID trùng tên và timestamp UTC không ở tương lai. Bản mới
+  nhưng hỏng không che bản hợp lệ cũ. Default age ≤ 3600 giây, có thể cấu hình
+  `BACKUP_MAX_AGE_SECONDS` trong khoảng 1–86400; không dùng file mtime làm evidence.
+- Thiếu bundle hoặc backup input: output ghi **NOT CHECKED**, không ngầm coi đạt.
+  Exit 0 chỉ xác nhận các checks được liệt kê; không thay deployment approval.
+
+**Vẫn chưa chứng minh:** image có trên registry/đúng build source, runtime/protocol
+load trong image, schema DB thực, secrets/volume provision, backup off-VPS và khả
+năng restore, maintenance/drain, migration execution/failure, health/workflow sau
+deploy, TLS, rollback. `BACKUP_ROOT` checksum pass không chứng minh dump restore được.
+Không gỡ `--execute` guard hoặc đóng B06-T03/B07 chỉ từ preflight pass.
+
+Trước deploy được ủy quyền: provision riêng API/worker login và secrets, đặt
+`RISKLAB_API_IMAGE`/`RISKLAB_WEB_IMAGE` đúng digest trong manifest; chuẩn bị volume
+release với catalog, model và release metadata đã kiểm tra hash. Cùng API image
+được dùng cho `api`, `migrate`, `worker`; Compose có command riêng cho hai service
+sau, không dựa vào Docker build target để thay CMD của image đã pull.
+
+Operator dừng mutations/worker, backup và kiểm tra tuổi bản sao; pull đúng images,
+chạy migration one-shot, khởi động và kiểm tra schema/model + workflow synthetic
+trước khi mở ghi. Lỗi bất kỳ bước nào phải dừng; rollback dùng manifest cũ chỉ khi
+schema/bundle tương thích. Chưa có SSH/CD tự động thay các bước này.
+
+### Cơ sở kỹ thuật đã đối chiếu
+
+- [Docker Compose config](https://docs.docker.com/reference/cli/docker/compose/config/)
+  render model sau interpolation; không khởi động service hay chứng minh health.
+- [Compose interpolation precedence](https://docs.docker.com/compose/how-tos/environment-variables/variable-interpolation/)
+  giải thích ưu tiên shell/`--env-file`/`.env`, lý do preflight ghim inputs thay vì
+  phụ thuộc environment ngầm.
+- [Docker Compose run](https://docs.docker.com/reference/cli/docker/compose/run/)
+  là one-off container; migration runner tương lai cần kiểm tra exit status của
+  chính lệnh migration. Không fallback sang health release cũ khi migration fail.
+- [Docker build context/.dockerignore](https://docs.docker.com/build/concepts/context/#dockerignore-files)
+  giải thích file loại bỏ phải nằm ở root của từng build context; vì web build
+  context là `apps/web`, ignore file của repo root không bảo vệ context đó.

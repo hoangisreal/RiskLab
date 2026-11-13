@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from datetime import datetime
 from typing import Annotated, Any
 from uuid import UUID
@@ -191,6 +192,7 @@ def _audit(
     *,
     reason: str | None = None,
     changes: dict[str, str | int | bool | None] | None = None,
+    job_id: UUID | None = None,
 ) -> None:
     append_audit(
         session,
@@ -201,6 +203,7 @@ def _audit(
         request_id=UUID(request.state.request_id),
         reason=reason,
         changes=changes,
+        job_id=job_id,
     )
 
 
@@ -239,8 +242,12 @@ async def create_import(
     file: Annotated[UploadFile, File()],
     idempotency_key: Annotated[str | None, Header()] = None,
 ) -> JSONResponse:
-    if idempotency_key is None:
-        raise AppError(422, "VALIDATION_ERROR", "Idempotency-Key header is required")
+    # Reject unauthorized uploads before writing immutable objects; authenticate
+    # again when committing because account permissions can change during IO.
+    with transaction(request) as session:
+        authenticate(session, request, {"MANAGER"}, mutation=True)
+    if idempotency_key is None or re.fullmatch(r"[A-Za-z0-9_-]{8,128}", idempotency_key) is None:
+        raise AppError(422, "VALIDATION_ERROR", "A valid Idempotency-Key header is required")
     if import_contract_version != IMPORT_CONTRACT:
         raise AppError(422, "UNSUPPORTED_CONTRACT", "Unsupported import contract version")
     catalog = request.app.state.catalog
@@ -263,8 +270,13 @@ async def create_import(
     return JSONResponse(status_code=202, content={"data": result})
 
 
-def _owned_import(session: Session, actor: User, import_id: UUID) -> ImportBatch:
-    batch = session.get(ImportBatch, import_id)
+def _owned_import(
+    session: Session, actor: User, import_id: UUID, *, lock: bool = False
+) -> ImportBatch:
+    query = select(ImportBatch).where(ImportBatch.id == import_id)
+    if lock:
+        query = query.with_for_update()
+    batch = session.scalar(query)
     if batch is None or batch.actor_id != actor.id:
         raise AppError(404, "NOT_FOUND", "Import not found")
     return batch
@@ -299,7 +311,7 @@ def get_import(import_id: UUID, request: Request) -> Envelope[dict[str, Any]]:
 def retry_import(import_id: UUID, body: RetryImportInput, request: Request) -> JSONResponse:
     with transaction(request) as session:
         actor = authenticate(session, request, {"MANAGER"}, mutation=True)
-        batch = _owned_import(session, actor, import_id)
+        batch = _owned_import(session, actor, import_id, lock=True)
         if batch.revision != body.expected_revision:
             raise AppError(409, "REVISION_CONFLICT", "Import changed; reload before retrying")
         if batch.state != "FAILED" or not batch.retryable:
@@ -311,10 +323,11 @@ def retry_import(import_id: UUID, body: RetryImportInput, request: Request) -> J
         batch.errors_truncated = False
         batch.total_rows = None
         batch.revision += 1
-        enqueue_job(session, kind="IMPORT", import_id=batch.id, initiated_by=actor.id)
+        job = enqueue_job(session, kind="IMPORT", import_id=batch.id, initiated_by=actor.id)
         append_audit(
             session,
             action="import.retried",
+            job_id=job.id,
             resource_type="import",
             resource_id=batch.id,
             actor_id=actor.id,
@@ -462,7 +475,12 @@ def assign_application(
         _check_revision(application, body.expected_revision)
         if application.review_state == "DECIDED":
             raise AppError(409, "INVALID_STATE", "Decided applications cannot be reassigned")
-        assignee = session.get(User, body.assignee_id)
+        assignee = session.scalar(
+            select(User)
+            .where(User.id == body.assignee_id)
+            .with_for_update(read=True)
+            .execution_options(populate_existing=True)
+        )
         if assignee is None or not assignee.is_active or assignee.role != "ANALYST":
             raise AppError(422, "VALIDATION_ERROR", "Assignee must be an active Analyst")
         application.assignee_id = assignee.id
@@ -518,6 +536,7 @@ def retry_scoring(application_id: UUID, body: RetryImportInput, request: Request
             actor,
             application,
             "scoring.retry_requested",
+            job_id=job.id,
             reason=body.reason,
             changes={"state": "QUEUED"},
         )
@@ -591,6 +610,7 @@ def patch_review(
         review = _load_review(session, application, review_id)
         if (
             application.review_state != "IN_REVIEW"
+            or review != _current_review(session, application)
             or review.submitted_at is not None
             or review.author_id != actor.id
             or application.assignee_id != actor.id
@@ -628,6 +648,7 @@ def submit_review(
         review = _load_review(session, application, review_id)
         if (
             application.review_state != "IN_REVIEW"
+            or review != _current_review(session, application)
             or review.submitted_at is not None
             or review.author_id != actor.id
             or application.assignee_id != actor.id
@@ -666,7 +687,12 @@ def return_review(
         current = _current_review(session, application)
         if current is None or current.id != body.review_id:
             raise AppError(409, "INVALID_STATE", "Review is not the current submission")
-        assignee = session.get(User, application.assignee_id) if application.assignee_id else None
+        assignee = session.scalar(
+            select(User)
+            .where(User.id == application.assignee_id)
+            .with_for_update(read=True)
+            .execution_options(populate_existing=True)
+        )
         if assignee is None or not assignee.is_active or assignee.role != "ANALYST":
             raise AppError(
                 409, "INVALID_STATE", "Reassign to an active Analyst before returning the review"
@@ -703,8 +729,8 @@ def create_decision(
     request: Request,
     idempotency_key: Annotated[str | None, Header()] = None,
 ) -> JSONResponse:
-    if idempotency_key is None:
-        raise AppError(422, "VALIDATION_ERROR", "Idempotency-Key header is required")
+    if idempotency_key is None or re.fullmatch(r"[A-Za-z0-9_-]{8,128}", idempotency_key) is None:
+        raise AppError(422, "VALIDATION_ERROR", "A valid Idempotency-Key header is required")
     payload = {
         "expected_revision": body.expected_revision,
         "review_id": str(body.review_id),

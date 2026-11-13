@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { api, apiPage, mutate, uploadImport, messageFor } from "@/lib/api";
+import { DataTable } from "@/components/data-table";
 import type { ImportJob } from "@/lib/types";
 import { useSession } from "@/components/session";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
@@ -15,6 +16,8 @@ type Catalog = {
 
 export default function Imports() {
   const { user, pending } = useSession();
+  const [search, setSearch] = useState("");
+  const [stateFilter, setStateFilter] = useState("");
   const [catalogs, setCatalogs] = useState<Catalog[]>([]);
   const [jobs, setJobs] = useState<ImportJob[]>([]);
   const [total, setTotal] = useState(0);
@@ -23,6 +26,9 @@ export default function Imports() {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const importIntent = useRef<{ fingerprint: string; key: string } | null>(
+    null,
+  );
 
   useEffect(() => {
     if (user?.role !== "MANAGER") return;
@@ -60,11 +66,24 @@ export default function Imports() {
     setError("");
     setMessage("");
     try {
+      // A lost response is ambiguous: retain the key for identical file bytes
+      // and catalog until success, even if the user selects the file again.
+      const digest = await crypto.subtle.digest(
+        "SHA-256",
+        await file.arrayBuffer(),
+      );
+      const fingerprint = `${catalog}:${Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("")}`;
+      if (importIntent.current?.fingerprint !== fingerprint)
+        importIntent.current = {
+          fingerprint,
+          key: `web-import-${crypto.randomUUID()}`,
+        };
       const job = await uploadImport<ImportJob>(
         catalog,
         file,
-        `web-import-${crypto.randomUUID()}`,
+        importIntent.current.key,
       );
+      importIntent.current = null;
       setMessage(
         `Đã nhận import ${job.id.slice(0, 8)}… Trạng thái hiện tại: ${job.state}. Worker sẽ xử lý tiếp.`,
       );
@@ -178,54 +197,91 @@ export default function Imports() {
         ) : jobs.length === 0 ? (
           <EmptyState>Chưa có import nào. Tổng: {total}.</EmptyState>
         ) : (
-          <div className="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>Import</th>
-                  <th>Trạng thái</th>
-                  <th>Kết quả</th>
-                  <th>Lỗi</th>
-                  <th>Thao tác</th>
-                </tr>
-              </thead>
-              <tbody>
-                {jobs.map((job) => (
-                  <tr key={job.id}>
-                    <td data-label="Import">
-                      {job.id.slice(0, 8)}… · {job.catalog_version}
-                    </td>
-                    <td data-label="Trạng thái">
-                      {job.state} · lần {job.attempt}
-                    </td>
-                    <td data-label="Kết quả">
-                      {job.created_count}/{job.total_rows ?? "—"} hồ sơ · READY{" "}
-                      {job.ready_count} · INCOMPLETE {job.incomplete_count}
-                    </td>
-                    <td data-label="Lỗi">
-                      {job.errors.length === 0
-                        ? "—"
-                        : job.errors
-                            .map(
-                              (item) =>
-                                `${item.code} (dòng ${item.row ?? "—"})`,
-                            )
-                            .join("; ")}
-                    </td>
-                    <td data-label="Thao tác">
-                      {job.state === "FAILED" && job.retryable ? (
-                        <button disabled={busy} onClick={() => void retry(job)}>
-                          Thử lại import
-                        </button>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <>
+            <div className="filterbar section-gap">
+              <div className="field">
+                <label htmlFor="import-search">
+                  Tìm trong 20 import gần nhất
+                </label>
+                <input
+                  id="import-search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="import-state">Trạng thái import</label>
+                <select
+                  id="import-state"
+                  value={stateFilter}
+                  onChange={(e) => setStateFilter(e.target.value)}
+                >
+                  <option value="">Tất cả</option>
+                  {["QUEUED", "RUNNING", "SUCCEEDED", "FAILED"].map((x) => (
+                    <option key={x}>{x}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <DataTable
+              data={jobs.filter(
+                (j) =>
+                  (!stateFilter || j.state === stateFilter) &&
+                  `${j.id} ${j.catalog_version}`
+                    .toLowerCase()
+                    .includes(search.toLowerCase()),
+              )}
+              columns={[
+                {
+                  accessorKey: "id",
+                  header: "Import",
+                  cell: ({ row }) => (
+                    <span>
+                      {row.original.id.slice(0, 8)}… ·{" "}
+                      {row.original.catalog_version}
+                    </span>
+                  ),
+                },
+                { accessorKey: "state", header: "Trạng thái" },
+                {
+                  accessorKey: "created_count",
+                  header: "Kết quả",
+                  cell: ({ row }) => (
+                    <span>
+                      {row.original.created_count}/
+                      {row.original.total_rows ?? "—"} hồ sơ · READY{" "}
+                      {row.original.ready_count} · INCOMPLETE{" "}
+                      {row.original.incomplete_count}
+                    </span>
+                  ),
+                },
+                {
+                  id: "errors",
+                  header: "Lỗi",
+                  cell: ({ row }) =>
+                    row.original.errors
+                      .map((e) => `${e.code} (dòng ${e.row ?? "—"})`)
+                      .join("; ") || "—",
+                },
+                {
+                  id: "actions",
+                  header: "Thao tác",
+                  cell: ({ row }) =>
+                    row.original.state === "FAILED" &&
+                    row.original.retryable ? (
+                      <button
+                        disabled={busy}
+                        onClick={() => void retry(row.original)}
+                      >
+                        Thử lại import
+                      </button>
+                    ) : (
+                      "—"
+                    ),
+                },
+              ]}
+            />
+          </>
         )}
       </section>
     </>

@@ -656,7 +656,6 @@ def registry_promote(
         RegistryError,
         champion_info_or_none,
         check_promotion,
-        set_alias,
     )
     from risklab.registry.gates import GateConfig
 
@@ -675,19 +674,17 @@ def registry_promote(
         previous = current["version"] if current is not None else None
         if "champion_version" in gate and previous != gate["champion_version"]:
             raise RegistryError("champion changed during gate evaluation; retry promotion")
-        set_alias(version)
-    except RegistryError as exc:
-        _fail(str(exc))
-    from risklab.registry.audit import append_audit
+        from risklab.registry.audit import change_alias
 
-    append_audit(
-        _audit_path(ctx),
-        action="promote",
-        from_version=previous,
-        to_version=version,
-        actor="cli",
-        reason=f"FORCE: {reason}" if force else reason,
-    )
+        change_alias(
+            _audit_path(ctx),
+            action="promote",
+            from_version=previous,
+            to_version=version,
+            reason=f"FORCE: {reason}" if force else reason,
+        )
+    except (RegistryError, OSError, ValueError) as exc:
+        _fail(str(exc))
     typer.echo(f"Champion -> version {version}")
 
 
@@ -706,7 +703,6 @@ def registry_rollback(
         read_serving_config,
         resolve_champion,
         resolve_version,
-        set_alias,
     )
 
     try:
@@ -731,19 +727,17 @@ def registry_rollback(
             previous = resolve_champion()["version"]
         except RegistryError:
             previous = None
-        set_alias(version)
-    except (RegistryError, ValueError) as exc:
-        _fail(str(exc))
-    from risklab.registry.audit import append_audit
+        from risklab.registry.audit import change_alias
 
-    append_audit(
-        _audit_path(ctx),
-        action="rollback",
-        from_version=previous,
-        to_version=version,
-        actor="cli",
-        reason=reason,
-    )
+        change_alias(
+            _audit_path(ctx),
+            action="rollback",
+            from_version=previous,
+            to_version=version,
+            reason=reason,
+        )
+    except (RegistryError, OSError, ValueError) as exc:
+        _fail(str(exc))
     typer.echo(f"Champion rolled back -> version {version}")
 
 

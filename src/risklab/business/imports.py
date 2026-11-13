@@ -14,12 +14,12 @@ from dataclasses import asdict, dataclass
 from uuid import UUID
 
 from sqlalchemy import func, select, text
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, load_only
 
 from risklab.business.audit import append_audit
 from risklab.business.catalog import DemoCatalog, PinnedRelease, PreparedImport, canonical_json
 from risklab.business.errors import AppError
-from risklab.business.identity import ensure_application_access
+from risklab.business.identity import ensure_application_access, identity_lock
 from risklab.business.import_csv import IMPORT_CONTRACT, ImportIssue, import_fingerprint
 from risklab.business.jobs import enqueue_job
 from risklab.business.models import Application, ImportBatch, ImportIdempotency, User
@@ -129,7 +129,7 @@ def enqueue_import(
     )
     session.add(batch)
     session.flush()
-    enqueue_job(session, kind="IMPORT", import_id=batch.id, initiated_by=actor.id)
+    job = enqueue_job(session, kind="IMPORT", import_id=batch.id, initiated_by=actor.id)
     result = import_result(batch)
     session.add(
         ImportIdempotency(
@@ -145,6 +145,7 @@ def enqueue_import(
     append_audit(
         session,
         action="import.created",
+        job_id=job.id,
         resource_type="import",
         resource_id=batch.id,
         actor_id=actor.id,
@@ -156,7 +157,7 @@ def enqueue_import(
 
 
 def persist_import(
-    session: Session, *, import_id: UUID, prepared: PreparedImport
+    session: Session, *, import_id: UUID, prepared: PreparedImport, job_id: UUID | None = None
 ) -> dict[str, object]:
     """Atomic validated applications + scoring jobs + audit, idempotent on completion.
 
@@ -164,6 +165,9 @@ def persist_import(
     can never persist an application whose scoring intent was lost. The worker
     calls this only while owning the import job attempt (attempt fencing).
     """
+    # Worker needs only public account identity, never password/session access.
+    # Admin mutations take the exclusive counterpart before changing accounts.
+    identity_lock(session, shared=True)
     batch = session.scalar(
         select(ImportBatch)
         .where(ImportBatch.id == import_id)
@@ -183,7 +187,14 @@ def persist_import(
         return import_result(batch)
     # Lock job before actor. Enqueue does not lock existing jobs; completion never
     # takes identity/admin locks or updates the source application during replacement.
-    actor = manager(session, batch.actor_id)
+    actor = session.scalar(
+        select(User)
+        .options(load_only(User.id, User.role, User.is_active))
+        .where(User.id == batch.actor_id)
+        .execution_options(populate_existing=True)
+    )
+    if actor is None or not actor.is_active or actor.role != "MANAGER":
+        raise AppError(403, "FORBIDDEN", "Import initiator is no longer an active Manager")
     issues = list(prepared.issues)
     for number, row in enumerate(prepared.rows, start=2):
         replacement = row.source.supersedes_application_id
@@ -235,7 +246,7 @@ def persist_import(
                 resource_type="application",
                 resource_id=application.id,
                 actor_type="WORKER",
-                job_id=batch.id,
+                job_id=job_id,
                 changes={"state": application.feature_availability},
             )
         batch.total_rows = len(prepared.rows)
@@ -250,7 +261,7 @@ def persist_import(
         resource_type="import",
         resource_id=batch.id,
         actor_type="WORKER",
-        job_id=batch.id,
+        job_id=job_id,
         changes={"state": batch.state},
     )
     session.flush()

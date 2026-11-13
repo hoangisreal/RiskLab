@@ -97,7 +97,7 @@ export default function Reports() {
     };
   }, [user]);
 
-  if (pending || loading) return <LoadingState />;
+  if (pending) return <LoadingState />;
   if (!user)
     return (
       <>
@@ -114,6 +114,7 @@ export default function Reports() {
         <p>Admin chỉ quản lý tài khoản.</p>
       </>
     );
+  if (loading) return <LoadingState />;
   if (!workload || !model)
     return <ErrorState>{error || "Không tải được báo cáo."}</ErrorState>;
 

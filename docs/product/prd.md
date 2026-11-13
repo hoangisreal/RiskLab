@@ -1,7 +1,7 @@
 # PRD — RiskLab MVP
 
-**Trạng thái:** đặc tả mục tiêu đã chốt ngày 2026-11-10; ứng dụng nghiệp vụ chưa
-triển khai. Nền tảng ML hiện có được mô tả tại [PROJECT.md](../PROJECT.md).
+**Trạng thái:** phạm vi MVP đã chốt ngày 2026-11-10. Implementation và bằng chứng
+local/VPS được ghi riêng tại [PROGRESS](../PROGRESS.md). Nền tảng ML hiện có được mô tả tại [PROJECT.md](../PROJECT.md).
 
 ## 1. Mục tiêu và người dùng
 
@@ -71,7 +71,7 @@ giữ nguyên; không bắt buộc tích hợp lên UI. Không xóa chúng vì n
   synthetic tin cậy trong catalog phía server. Không upload raw history/features
   tùy ý; snapshot giữ raw scoring contract và được kiểm tra trước khi sử dụng.
   [Business API v1](../business_api_contract.md) là specification cho B01–B04,
-  chưa phải endpoints đã triển khai.
+  trạng thái kiểm chứng từng phần nằm trong PROGRESS.
 - Phân biệt nguồn chưa được cung cấp với nguồn đã xác nhận không có lịch sử.
   Thiếu nguồn bắt buộc chặn scoring; không tự điền rỗng để vượt validation.
 - Explanation mô tả đóng góp của model, không chứng minh nhân quả hoặc cung cấp

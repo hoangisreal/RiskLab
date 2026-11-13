@@ -1,6 +1,7 @@
 # State machine và invariants
 
-**Trạng thái:** đặc tả MVP, chưa phải behavior đã triển khai.
+**Trạng thái:** contract hành vi cho workflow đã triển khai local. Bằng chứng
+kiểm chứng và các giới hạn nằm tại [PROGRESS](../PROGRESS.md).
 Quyền actor theo [RBAC](rbac.md); không suy ra quyền chỉ từ state.
 
 ## 1. Import

@@ -5,6 +5,7 @@
 .env
 .env.*
 .secrets
+deploy/secrets
 node_modules
 .next
 presentation
@@ -16,3 +17,5 @@ data
 mlflow-data
 features
 reports
+
+catboost_info

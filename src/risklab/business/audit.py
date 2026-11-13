@@ -33,6 +33,8 @@ def append_audit(
         "review_id",
         "outcome",
         "proposal",
+        "error_code",
+        "attempt",
     }
     if changes and set(changes) - allowed:
         raise ValueError("Audit changes contain a non-allowlisted field")

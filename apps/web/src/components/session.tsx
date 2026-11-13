@@ -100,12 +100,6 @@ export function SessionNavigation() {
   if (!user) return <Link href="/login">Đăng nhập</Link>;
   return (
     <nav aria-label="Tài khoản" className="session-nav">
-      {user.role === "ADMIN" && (
-        <Link href="/admin/users">Quản lý tài khoản</Link>
-      )}
-      {user.role === "MANAGER" && <Link href="/imports">Import hồ sơ</Link>}
-      {user.role !== "ADMIN" && <Link href="/applications">Hồ sơ</Link>}
-      {user.role !== "ADMIN" && <Link href="/reports">Báo cáo</Link>}
       <span className="workspace">
         {user.username} · {user.role}
       </span>

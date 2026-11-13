@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import "./globals.css";
+import { WorkspaceNavigation } from "@/components/workspace";
 import { SessionProvider, SessionNavigation } from "@/components/session";
 
 export const metadata: Metadata = {
@@ -44,6 +45,7 @@ export default function RootLayout({
               <SessionNavigation />
             </div>
           </header>
+          <WorkspaceNavigation />
           <div className="simulation">
             Chỉ mô phỏng hỗ trợ quyết định. Không sử dụng để phê duyệt tín dụng
             thực tế.

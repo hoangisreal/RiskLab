@@ -1,5 +1,7 @@
 "use client";
 
+import { DataTable } from "@/components/data-table";
+import { Badge } from "@/components/ui/badge";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { apiPage, messageFor } from "@/lib/api";
@@ -7,13 +9,13 @@ import type { ApplicationSummary } from "@/lib/types";
 import { useSession } from "@/components/session";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 
-export default function Applications() {
+export default function Applications({ queue = false }: { queue?: boolean }) {
   const { user, pending } = useSession();
   const [rows, setRows] = useState<ApplicationSummary[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState("");
-  const [reviewState, setReviewState] = useState("");
+  const [reviewState, setReviewState] = useState(queue ? "QUEUE" : "");
   const [scoringState, setScoringState] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -24,7 +26,15 @@ export default function Applications() {
     const controller = new AbortController();
     const params = new URLSearchParams({ page: String(page), page_size: "20" });
     if (query) params.set("q", query);
-    if (reviewState) params.set("review_state", reviewState);
+    if (reviewState)
+      params.set(
+        "review_state",
+        reviewState === "QUEUE"
+          ? user.role === "MANAGER"
+            ? "PENDING_DECISION"
+            : "ASSIGNED"
+          : reviewState,
+      );
     if (scoringState) params.set("scoring_state", scoringState);
     void apiPage<ApplicationSummary>(`/api/v1/applications?${params}`)
       .then((result) => {
@@ -64,7 +74,7 @@ export default function Applications() {
   return (
     <>
       <div className="page-heading">
-        <h1>Hồ sơ</h1>
+        <h1>{queue ? "Hàng đợi review" : "Hồ sơ"}</h1>
         <p>
           {user.role === "ANALYST"
             ? "Chỉ hiển thị hồ sơ được phân công cho bạn."
@@ -87,7 +97,10 @@ export default function Applications() {
             <input
               id="filter-q"
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => {
+                setPage(1);
+                setQuery(event.target.value);
+              }}
               maxLength={64}
             />
           </div>
@@ -96,9 +109,19 @@ export default function Applications() {
             <select
               id="filter-review"
               value={reviewState}
-              onChange={(event) => setReviewState(event.target.value)}
+              onChange={(event) => {
+                setPage(1);
+                setReviewState(event.target.value);
+              }}
             >
               <option value="">Tất cả</option>
+              {queue && (
+                <option value="QUEUE">
+                  {user.role === "MANAGER"
+                    ? "Chờ quyết định của Manager"
+                    : "Được giao, chưa bắt đầu"}
+                </option>
+              )}
               <option value="UNASSIGNED">Chưa phân công</option>
               <option value="ASSIGNED">Đã phân công</option>
               <option value="IN_REVIEW">Đang review</option>
@@ -111,7 +134,10 @@ export default function Applications() {
             <select
               id="filter-scoring"
               value={scoringState}
-              onChange={(event) => setScoringState(event.target.value)}
+              onChange={(event) => {
+                setPage(1);
+                setScoringState(event.target.value);
+              }}
             >
               <option value="">Tất cả</option>
               <option value="NOT_REQUESTED">Chưa yêu cầu</option>
@@ -132,38 +158,43 @@ export default function Applications() {
         ) : rows.length === 0 ? (
           <EmptyState>Chưa có hồ sơ phù hợp.</EmptyState>
         ) : (
-          <div className="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>Mã hồ sơ</th>
-                  <th>Người phụ trách</th>
-                  <th>Nguồn dữ liệu</th>
-                  <th>Scoring</th>
-                  <th>Review</th>
-                  <th>Chi tiết</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => (
-                  <tr key={row.id}>
-                    <td data-label="Mã hồ sơ">{row.external_reference}</td>
-                    <td data-label="Người phụ trách">
-                      {row.assignee?.username ?? "—"}
-                    </td>
-                    <td data-label="Nguồn dữ liệu">
-                      {row.feature_availability}
-                    </td>
-                    <td data-label="Scoring">{row.scoring_state}</td>
-                    <td data-label="Review">{row.review_state}</td>
-                    <td data-label="Chi tiết">
-                      <Link href={`/applications/${row.id}`}>Xem hồ sơ</Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            data={rows}
+            columns={[
+              { accessorKey: "external_reference", header: "Mã hồ sơ" },
+              {
+                id: "assignee",
+                accessorFn: (row) => row.assignee?.username ?? "—",
+                header: "Người phụ trách",
+              },
+              { accessorKey: "feature_availability", header: "Nguồn dữ liệu" },
+              {
+                accessorKey: "scoring_state",
+                header: "Scoring",
+                cell: ({ row }) => (
+                  <Badge variant="secondary">
+                    {row.original.scoring_state}
+                  </Badge>
+                ),
+              },
+              {
+                accessorKey: "review_state",
+                header: "Review",
+                cell: ({ row }) => (
+                  <Badge variant="outline">{row.original.review_state}</Badge>
+                ),
+              },
+              {
+                id: "detail",
+                header: "Chi tiết",
+                cell: ({ row }) => (
+                  <Link href={`/applications/${row.original.id}`}>
+                    Xem hồ sơ
+                  </Link>
+                ),
+              },
+            ]}
+          />
         )}
         <div className="pagination">
           <button disabled={page <= 1} onClick={() => setPage(page - 1)}>

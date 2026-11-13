@@ -12,20 +12,17 @@ system. The `approve`/`review` output is illustrative.
 
 ## Product scope and implementation status
 
-The current repository implements the **ML/scoring foundation plus the local
-application/identity foundation**, not yet the analyst/manager review workflow.
-The agreed MVP is a credit-risk decision-support
-simulation: Analysts review and propose, Managers alone finalize simulated
-decisions, and Admins manage accounts without implicit business permissions.
+The repository implements the **ML/scoring foundation and a local decision-support
+application**: Manager import → worker scoring → Analyst review → Manager decision.
+Admins manage accounts without implicit business permissions. Model output never
+creates a human decision.
 
-The target stack is **Next.js, FastAPI, PostgreSQL and a Python worker**, deployed
-on one Linux VPS with Docker Compose, Caddy HTTPS and GitHub Actions. This is a
-modular monolith, not microservices. Public demo data defaults to synthetic.
-The Next.js shell/login/Admin UI, PostgreSQL migrations, server sessions/RBAC and
-account audit run locally; import/scoring jobs, business review/decision and VPS
-delivery are **not implemented yet**. Follow the
-[application guide](docs/development/application.md) for web setup; the quick start
-below still runs the existing ML stack.
+The stack is **Next.js, FastAPI, PostgreSQL and a Python worker**, with Compose,
+Caddy and CI tooling for one Linux VPS. The application runs locally; VPS/TLS,
+registry publication and off-VPS recovery remain unverified. See
+[current status and actual checks](docs/PROGRESS.md) and the
+[application guide](docs/development/application.md). The quick start below runs
+the separate ML stack; public demo data defaults to synthetic.
 
 Start with the [Vietnamese documentation guide](docs/README.md),
 [MVP PRD](docs/product/prd.md) and [acceptance criteria](docs/product/acceptance.md).
@@ -92,42 +89,29 @@ in between. Batch and online features run the same cleaning code and the
 same SQL, verified by a 500-payload parity check with a maximum probability
 difference of 0.
 
-## Quick start
+## Run the local application
+
+Python 3.12, Node.js 24 and Docker are required.
 
 ```bash
 make setup
-make test                       # synthetic data only; no Kaggle credentials required
-# After accepting Kaggle competition rules and placing CSVs in data/raw:
-make ingest
-make partition
-mkdir -p reports features data/duckdb_tmp data/monitoring
-docker compose build train api
-docker compose up -d mlflow
-python scripts/run_selection.py # through verified candidate and Monitoring controls
+cd apps/web && npm ci --ignore-scripts
+cd ../..
+make app-local
+make app-status
 ```
 
-Follow [docs/OPERATIONS.md](docs/OPERATIONS.md) for clean-tree locking,
-registration, gated promotion, and API startup. Test evaluation is a
-separate, explicitly authorized step. Credentials and admin keys stay in
-the environment or in ignored local files.
+Open **http://localhost:3000**. Local credentials are generated under
+`.secrets/local_demo_accounts.json`. Import the synthetic CSV at
+`data/application/local-demo/import.csv` using the Manager account.
+`make app-stop` and `make app-start` control the background services.
 
-## Documentation
-
-| Document | Contents |
-|---|---|
-| [docs/README.md](docs/README.md) | Reading guide; current implementation vs target MVP |
-| [docs/product/prd.md](docs/product/prd.md) | MVP scope and users; links to RBAC, workflow and acceptance |
-| [docs/architecture/overview.md](docs/architecture/overview.md) | Target modular-monolith architecture (not implemented) |
-| [docs/operations/deployment.md](docs/operations/deployment.md) | Target VPS delivery, security, CI/CD and backup links |
-| [docs/PROJECT.md](docs/PROJECT.md) | Current ML architecture, data flow, module and config map |
-| [docs/RESULTS.md](docs/RESULTS.md) | Accepted experiments, locked Test evidence, limitations |
-| [docs/model_card.md](docs/model_card.md) | Model card for the served artifact |
-| [docs/OPERATIONS.md](docs/OPERATIONS.md) | Setup, deployment, API, monitoring, reproduction |
-| [docs/DECISIONS.md](docs/DECISIONS.md) | Historical ML decisions and current MVP scope decisions |
-| [docs/PROGRESS.md](docs/PROGRESS.md) | Project status and follow-up investigations |
-| [docs/data_contract.md](docs/data_contract.md) | Raw data contract and validation rules |
-| [docs/api_contract.md](docs/api_contract.md) | API request/response contract 1.1 |
-| [docs/archive/](docs/archive/) | Earlier detailed write-ups, superseded by the documents above |
+Setup, checks and screen capabilities are in the
+[application guide](docs/development/application.md). Use the
+[documentation index](docs/README.md) for contracts, architecture, status and
+operations. The separate historical ML workflow is documented in
+[OPERATIONS](docs/OPERATIONS.md). Recorded results and run/lock identities remain
+in [RESULTS](docs/RESULTS.md) and the [model card](docs/model_card.md).
 
 ## Known limitations
 

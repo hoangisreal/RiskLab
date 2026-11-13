@@ -43,27 +43,28 @@ export async function mutate<T>(
   body?: unknown,
   method = "POST",
 ): Promise<T> {
+  return csrfRequest<T>(path, {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+}
+
+async function csrfRequest<T>(path: string, options: RequestInit): Promise<T> {
   for (let attempt = 0; attempt < 2; attempt++) {
     if (!csrfToken)
       csrfToken = (await api<{ csrf_token: string }>("/api/v1/auth/csrf"))
         .csrf_token;
     try {
       return await api<T>(path, {
-        method,
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRF-Token": csrfToken,
-        },
-        body: body === undefined ? undefined : JSON.stringify(body),
+        ...options,
+        headers: { ...options.headers, "X-CSRF-Token": csrfToken },
       });
     } catch (error) {
-      if (
-        !(error instanceof ApiError) ||
-        error.code !== "CSRF_FAILED" ||
-        attempt === 1
-      )
+      if (!(error instanceof ApiError) || error.code !== "CSRF_FAILED")
         throw error;
       csrfToken = undefined;
+      if (attempt === 1) throw error;
     }
   }
   throw new Error("Request could not be completed");
@@ -99,63 +100,31 @@ export async function uploadImport<T>(
   file: File,
   idempotencyKey: string,
 ): Promise<T> {
-  if (!csrfToken)
-    csrfToken = (await api<{ csrf_token: string }>("/api/v1/auth/csrf"))
-      .csrf_token;
   const form = new FormData();
   form.set("import_contract_version", "demo-import/1");
   form.set("catalog_version", catalogVersion);
   form.set("file", file);
-  const response = await fetch("/api/v1/imports", {
+  return csrfRequest<T>("/api/v1/imports", {
     method: "POST",
-    credentials: "same-origin",
-    cache: "no-store",
-    headers: {
-      "X-CSRF-Token": csrfToken,
-      "Idempotency-Key": idempotencyKey,
-    },
+    headers: { "Idempotency-Key": idempotencyKey },
     body: form,
   });
-  const body = await response.json().catch(() => null);
-  if (!response.ok) {
-    throw new ApiError(
-      response.status,
-      body?.error?.code ?? "CONNECTION_ERROR",
-      response.headers.get("x-request-id") ?? undefined,
-    );
-  }
-  return body?.data as T;
 }
 
-/** Decision creation repeats safely only under the caller's idempotency key. */
+/** Keep the same payload and key when recovering a rejected CSRF check. */
 export async function mutateWithKey<T>(
   path: string,
   body: unknown,
   idempotencyKey: string,
 ): Promise<T> {
-  if (!csrfToken)
-    csrfToken = (await api<{ csrf_token: string }>("/api/v1/auth/csrf"))
-      .csrf_token;
-  const response = await fetch(path, {
+  return csrfRequest<T>(path, {
     method: "POST",
-    credentials: "same-origin",
-    cache: "no-store",
     headers: {
       "Content-Type": "application/json",
-      "X-CSRF-Token": csrfToken,
       "Idempotency-Key": idempotencyKey,
     },
     body: JSON.stringify(body),
   });
-  const payload = await response.json().catch(() => null);
-  if (!response.ok) {
-    throw new ApiError(
-      response.status,
-      payload?.error?.code ?? "CONNECTION_ERROR",
-      response.headers.get("x-request-id") ?? undefined,
-    );
-  }
-  return payload?.data as T;
 }
 
 export function messageFor(error: unknown): string {

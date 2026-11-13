@@ -26,6 +26,8 @@ services:
   migrate:
     image: ${RISKLAB_API_IMAGE:?Set RISKLAB_API_IMAGE to a pinned digest}
     build: { context: .., target: migrate }
+    command: ["/app/.venv/bin/alembic", "upgrade", "head"]
+    healthcheck: { disable: true }
     environment:
       RISKLAB_DATABASE_URL_FILE: /run/secrets/migrator_url
     secrets: [migrator_url]
@@ -38,6 +40,7 @@ services:
     build: { context: .., target: business }
     environment:
       RISKLAB_ENVIRONMENT: production
+      FORWARDED_ALLOW_IPS: ${RISKLAB_TRUSTED_PROXY_IPS:?Set the trusted Caddy peer IP or CIDR}
       RISKLAB_DATABASE_URL_FILE: /run/secrets/api_url
       RISKLAB_ORIGIN: ${RISKLAB_ORIGIN:?Set the public HTTPS origin}
       RISKLAB_STORAGE_ROOT: /app/data/application/objects
@@ -61,6 +64,8 @@ services:
   worker:
     image: ${RISKLAB_API_IMAGE:?Set RISKLAB_API_IMAGE to a pinned digest}
     build: { context: .., target: worker }
+    command: ["/app/.venv/bin/risklab-worker"]
+    healthcheck: { disable: true }
     environment:
       RISKLAB_ENVIRONMENT: production
       RISKLAB_DATABASE_URL_FILE: /run/secrets/worker_url

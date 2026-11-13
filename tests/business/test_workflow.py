@@ -10,14 +10,16 @@ from __future__ import annotations
 import hashlib
 import pickle
 import shutil
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from datetime import timedelta
+from threading import Event
 from uuid import UUID
 
 import pytest
 import yaml
 from fastapi.testclient import TestClient
-from sqlalchemy import func, select
+from sqlalchemy import event, func, select, text
+from sqlalchemy.exc import OperationalError
 from tests.conftest import CONFIG_DIR, REPO_ROOT, write_config_dir
 from tests.fixtures.synthetic import generate
 from typer.testing import CliRunner
@@ -31,18 +33,21 @@ from risklab.business.models import (
     Application,
     AuditEvent,
     Decision,
+    ImportBatch,
     Job,
     Prediction,
     User,
     now_utc,
 )
-from risklab.business.scoring import PinnedScoringModel
+from risklab.business.scoring import PinnedScoringModel, runtime_protocol_hashes
 from risklab.business.settings import Settings
 from risklab.business.storage import LocalStorage
 from risklab.business.worker import WorkerRuntime, run_once
 from risklab.cli import app as cli_app
 from risklab.config import load_data_config, load_partition_config
-from risklab.features.application import load_application_frame
+from risklab.features.application import FeatureColumns
+from risklab.features.historical import combined_columns, load_full_frame
+from risklab.manifest import library_versions
 from risklab.models.pipelines import load_lgbm_params, make_lgbm_pipeline
 from risklab.models.train import fit_pipeline
 
@@ -116,12 +121,21 @@ def model_env(tmp_path_factory, repo_data_config, raw_schema):
         assert result.exit_code == 0, result.output
     data_cfg = load_data_config(cfg_dir)
     partition_cfg = load_partition_config(cfg_dir)
-    X, y = load_application_frame(
-        "train", "fit", data_cfg=data_cfg, partition_cfg=partition_cfg, config_dir=cfg_dir
+    X, y = load_full_frame(
+        "train",
+        "fit",
+        ["bureau", "previous", "installments"],
+        data_cfg=data_cfg,
+        partition_cfg=partition_cfg,
+        config_dir=cfg_dir,
     )
+    numeric, categorical = combined_columns(
+        ["bureau", "previous", "installments"], config_dir=cfg_dir
+    )
+    columns = FeatureColumns(numeric=numeric, categorical=categorical, log=[])
     pipe = fit_pipeline(
-        make_lgbm_pipeline(load_lgbm_params(cfg_dir), config_dir=str(cfg_dir)),
-        X.head(500),
+        make_lgbm_pipeline(load_lgbm_params(cfg_dir), columns=columns, config_dir=str(cfg_dir)),
+        X[columns.all].head(500),
         y.head(500),
     )
     model_path = root / "model.pkl"
@@ -136,7 +150,8 @@ def model_env(tmp_path_factory, repo_data_config, raw_schema):
         feature_groups=["bureau", "previous", "installments"],
         threshold=0.1,
         policy_version="synthetic-policy-v1",
-        protocol_hashes={"synthetic": "0" * 64},
+        protocol_hashes=runtime_protocol_hashes(root, cfg_dir),
+        library_versions=library_versions(),
         feature_columns=list(pipe.feature_names_in_),
     )
     scorer = PinnedScoringModel(
@@ -181,7 +196,7 @@ def workflow_env(database, model_env, tmp_path):
         },
     )
     runtime = WorkerRuntime(storage=storage, config_dir=cfg_dir, root=root, scorer=scorer)
-    return app, factory, users, runtime, database.runtime
+    return app, factory, users, runtime, database.worker
 
 
 def signed_in(app, username):
@@ -544,3 +559,343 @@ def test_workload_reports_are_scoped(workflow_env):
     with factory() as session:
         actions = {row.action for row in session.scalars(select(AuditEvent))}
     assert "application.assigned" in actions
+
+
+@pytest.mark.parametrize("actor", [None, "analyst.demo", "admin.demo", "manager.demo"])
+def test_rejected_import_never_stages_objects(workflow_env, actor):
+    app, factory, users, runtime, engine = workflow_env
+    client = TestClient(app) if actor is None else signed_in(app, actor)
+    if actor == "manager.demo":
+        client.headers["x-csrf-token"] = "invalid"
+    before = set(runtime.storage.root.iterdir())
+    response = client.post(
+        "/api/v1/imports",
+        headers={"Idempotency-Key": "unauthorized-import"},
+        data={"import_contract_version": "demo-import/1", "catalog_version": "synthetic-b00-v1"},
+        files={"file": ("demo.csv", b"unauthorized-unique-upload", "text/csv")},
+    )
+    assert response.status_code in {401, 403}
+    assert set(runtime.storage.root.iterdir()) == before
+
+
+def test_old_draft_cannot_be_edited_or_submitted_after_reassignment(workflow_env):
+    app, factory, users, runtime, engine = workflow_env
+    manager, _ = import_and_score(workflow_env)
+    target = scored_application(workflow_env, manager)
+    assigned = assign(manager, target, users["analyst.demo"])
+    analyst = signed_in(app, "analyst.demo")
+    first = analyst.post(
+        f"/api/v1/applications/{target.id}/reviews",
+        json={"expected_revision": assigned["revision"]},
+    ).json()["data"]
+    old_id = first["review"]["id"]
+    saved = analyst.patch(
+        f"/api/v1/applications/{target.id}/reviews/{old_id}",
+        json={
+            "expected_revision": first["application_revision"],
+            "notes": "Old draft",
+            "proposal": "APPROVE",
+        },
+    )
+    assert saved.status_code == 200
+    assign(manager, target, users["analyst.two"])
+    reassigned = assign(manager, target, users["analyst.demo"])
+    current = analyst.post(
+        f"/api/v1/applications/{target.id}/reviews",
+        json={"expected_revision": reassigned["revision"]},
+    ).json()["data"]
+    revision = current["application_revision"]
+    rejected = analyst.patch(
+        f"/api/v1/applications/{target.id}/reviews/{old_id}",
+        json={"expected_revision": revision, "notes": "Stale edit", "proposal": "DECLINE"},
+    )
+    assert rejected.status_code == 409
+    rejected = analyst.post(
+        f"/api/v1/applications/{target.id}/reviews/{old_id}/submit",
+        json={"expected_revision": revision},
+    )
+    assert rejected.status_code == 409
+    detail = analyst.get(f"/api/v1/applications/{target.id}").json()["data"]
+    assert detail["revision"] == revision
+    assert detail["current_review"]["id"] == current["review"]["id"]
+
+
+@pytest.mark.parametrize("key", ["short", "contains spaces", "x" * 129])
+def test_decision_rejects_invalid_idempotency_key_before_db_write(workflow_env, key):
+    app, factory, users, runtime, engine = workflow_env
+    manager, _ = import_and_score(workflow_env)
+    target = scored_application(workflow_env, manager)
+    assign(manager, target, users["analyst.demo"])
+    submitted = submit_as(signed_in(app, "analyst.demo"), target.id)
+    response = manager.post(
+        f"/api/v1/applications/{target.id}/decisions",
+        headers={"Idempotency-Key": key},
+        json={
+            "expected_revision": submitted["application_revision"],
+            "review_id": submitted["review"]["id"],
+            "outcome": "APPROVED_SIMULATED",
+            "reason": "Test validation",
+        },
+    )
+    assert response.status_code == 422
+    with factory() as session:
+        assert session.scalar(select(func.count()).select_from(Decision)) == 0
+
+
+@pytest.mark.parametrize(
+    "change", ["protocol", "versions", "missing_versions", "groups", "duplicates", "columns"]
+)
+def test_pinned_model_rejects_incompatible_release_before_deserialization(
+    model_env, monkeypatch, change
+):
+    import risklab.business.scoring as scoring
+    from risklab.business.errors import AppError
+
+    cfg_dir, root, release, scorer = model_env
+    updates = {
+        "protocol": {"protocol_hashes": {"wrong": "0" * 64}},
+        "versions": {"library_versions": {**release.library_versions, "python": "0.0"}},
+        "missing_versions": {"library_versions": {}},
+        "groups": {"feature_groups": ["unknown"]},
+        "duplicates": {"feature_groups": ["bureau", "bureau"]},
+        "columns": {"feature_groups": []},
+    }
+    monkeypatch.setattr(scoring.pickle, "loads", lambda _: pytest.fail("loaded incompatible model"))
+    with pytest.raises(AppError, match="Model"):
+        PinnedScoringModel(
+            model_path=root / "model.pkl",
+            release=release.model_copy(update=updates[change]),
+            config_dir=cfg_dir,
+            root=root,
+        )
+
+
+@pytest.mark.parametrize("kind", ["IMPORT", "SCORING"])
+def test_lease_expiry_during_result_commit_rolls_back_all_side_effects(
+    workflow_env, monkeypatch, kind
+):
+    import risklab.business.worker as worker
+
+    app, factory, users, runtime, engine = workflow_env
+    manager = signed_in(app, "manager.demo")
+    response = manager.post(
+        "/api/v1/imports",
+        headers={"Idempotency-Key": "commit-expiry-test"},
+        data={"import_contract_version": "demo-import/1", "catalog_version": "synthetic-b00-v1"},
+        files={"file": ("demo.csv", (FIXTURES / "import-valid.csv").read_bytes(), "text/csv")},
+    )
+    assert response.status_code == 202
+    if kind == "SCORING":
+        assert run_once(engine, runtime, worker_id="prepare")
+    original = worker.complete_job
+
+    def expired(session, **kwargs):
+        if session.get(Job, kwargs["job_id"]).kind == kind:
+            return False
+        return original(session, **kwargs)
+
+    monkeypatch.setattr(worker, "complete_job", expired)
+    assert run_once(engine, runtime, worker_id="expiring")
+    with factory() as session:
+        assert session.scalar(select(func.count()).select_from(Prediction)) == 0
+        if kind == "IMPORT":
+            assert session.scalar(select(func.count()).select_from(Application)) == 0
+        assert not session.scalar(
+            select(func.count())
+            .select_from(AuditEvent)
+            .where(AuditEvent.action == "application.scored")
+        )
+
+
+def test_alternate_unverified_history_config_is_rejected(model_env, tmp_path):
+    from risklab.business.errors import AppError
+    from risklab.business.scoring import runtime_protocol_hashes
+
+    cfg_dir, root, *_ = model_env
+    alternate = tmp_path / "configs"
+    shutil.copytree(cfg_dir, alternate)
+    with pytest.raises(AppError, match="verified root"):
+        runtime_protocol_hashes(root, alternate)
+
+
+def test_missing_model_preserves_queued_scoring_budget(workflow_env):
+    from dataclasses import replace
+
+    app, factory, users, runtime, engine = workflow_env
+    manager = signed_in(app, "manager.demo")
+    response = manager.post(
+        "/api/v1/imports",
+        headers={"Idempotency-Key": "no-model-import-001"},
+        data={"import_contract_version": "demo-import/1", "catalog_version": "synthetic-b00-v1"},
+        files={"file": ("demo.csv", (FIXTURES / "import-valid.csv").read_bytes(), "text/csv")},
+    )
+    assert response.status_code == 202
+    unavailable = replace(runtime, scorer=None)
+    assert run_once(engine, unavailable, worker_id="no-model")
+    for _ in range(4):
+        assert not run_once(engine, unavailable, worker_id="no-model")
+    with factory() as session:
+        scoring = list(session.scalars(select(Job).where(Job.kind == "SCORING")))
+        assert len(scoring) == 2
+        assert all(j.state == "QUEUED" and j.attempt == 0 for j in scoring)
+        import_job = session.scalar(select(Job).where(Job.kind == "IMPORT"))
+        imported = list(
+            session.scalars(
+                select(AuditEvent).where(
+                    AuditEvent.action.in_(["application.imported", "import.completed"])
+                )
+            )
+        )
+        assert len(imported) == 4 and all(e.job_id == import_job.id for e in imported)
+    assert run_once(engine, runtime, worker_id="model-ready")
+
+
+def test_invalid_import_key_never_stages_files(workflow_env):
+    app, factory, users, runtime, engine = workflow_env
+    manager = signed_in(app, "manager.demo")
+    before = set(runtime.storage.root.iterdir())
+    result = manager.post(
+        "/api/v1/imports",
+        headers={"Idempotency-Key": "bad"},
+        data={"import_contract_version": "demo-import/1", "catalog_version": "synthetic-b00-v1"},
+        files={"file": ("demo.csv", b"must-not-stage", "text/csv")},
+    )
+    assert result.status_code == 422
+    assert set(runtime.storage.root.iterdir()) == before
+
+
+@pytest.mark.parametrize("operation", ["assign", "return"])
+@pytest.mark.parametrize("disable_first", [True, False])
+def test_assignee_status_serializes_with_assignment_and_return(
+    workflow_env, database, operation, disable_first
+):
+    app, factory, users, _, _ = workflow_env
+    manager, _ = import_and_score(workflow_env)
+    target = scored_application(workflow_env, manager)
+    assignee_id = users["analyst.demo"]
+    review_id = None
+    if operation == "return":
+        assign(manager, target, assignee_id)
+        analyst = signed_in(app, "analyst.demo")
+        submitted = submit_as(analyst, target.id)
+        review_id = submitted["review"]["id"]
+    detail = manager.get(f"/api/v1/applications/{target.id}").json()["data"]
+    body = {"expected_revision": detail["revision"], "reason": "Concurrent status test"}
+    if operation == "assign":
+        body["assignee_id"] = str(assignee_id)
+    else:
+        body["review_id"] = review_id
+
+    reached = Event()
+    resume = Event()
+
+    def observe(connection, cursor, statement, parameters, context, executemany):
+        if (
+            "FROM users" in statement
+            and "FOR SHARE" in statement
+            and assignee_id in parameters.values()
+        ):
+            reached.set()
+            if not disable_first:
+                assert resume.wait(10)
+
+    # Observe after SELECT when Manager wins, before SELECT when Admin wins.
+    hook = "before_cursor_execute" if disable_first else "after_cursor_execute"
+    event.listen(database.runtime, hook, observe)
+
+    def mutate():
+        if operation == "assign":
+            return manager.put(f"/api/v1/applications/{target.id}/assignment", json=body)
+        return manager.post(f"/api/v1/applications/{target.id}/return", json=body)
+
+    try:
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            if disable_first:
+                with database.owner.begin() as connection:
+                    connection.execute(
+                        text("UPDATE users SET is_active = false WHERE id = :id"),
+                        {"id": assignee_id},
+                    )
+                    result = pool.submit(mutate)
+                    assert reached.wait(10)
+                    with pytest.raises(TimeoutError):
+                        result.result(timeout=0.1)
+                response = result.result(timeout=10)
+                assert response.status_code == (422 if operation == "assign" else 409)
+            else:
+                result = pool.submit(mutate)
+                try:
+                    assert reached.wait(10)
+                    # The same target row lock used by Admin cannot be acquired.
+                    import psycopg
+
+                    with database.owner.connect() as connection:
+                        with pytest.raises(OperationalError) as blocked:
+                            connection.execute(
+                                text("SELECT id FROM users WHERE id = :id FOR UPDATE NOWAIT"),
+                                {"id": assignee_id},
+                            )
+                        assert isinstance(blocked.value.orig, psycopg.errors.LockNotAvailable)
+                finally:
+                    resume.set()
+                assert result.result(timeout=10).status_code == 200
+                with database.owner.begin() as connection:
+                    connection.execute(
+                        text("UPDATE users SET is_active = false WHERE id = :id"),
+                        {"id": assignee_id},
+                    )
+    finally:
+        resume.set()
+        event.remove(database.runtime, hook, observe)
+    with factory() as session:
+        updated = session.get(Application, target.id)
+        assert updated.revision == detail["revision"] + (0 if disable_first else 1)
+
+
+@pytest.mark.parametrize("kind", ["IMPORT", "SCORING"])
+def test_http_job_creation_audit_references_the_enqueued_job(workflow_env, kind):
+    app, factory, _, runtime, engine = workflow_env
+    manager = signed_in(app, "manager.demo")
+    imported = manager.post(
+        "/api/v1/imports",
+        headers={"Idempotency-Key": "audit-job-create-001"},
+        data={"import_contract_version": "demo-import/1", "catalog_version": "synthetic-b00-v1"},
+        files={"file": ("demo.csv", (FIXTURES / "import-valid.csv").read_bytes(), "text/csv")},
+    )
+    assert imported.status_code == 202
+    batch_id = UUID(imported.json()["data"]["id"])
+    with factory() as session:
+        created = session.scalar(select(AuditEvent).where(AuditEvent.action == "import.created"))
+        assert session.get(Job, created.job_id).import_id == batch_id
+    if kind == "SCORING":
+        assert run_once(engine, runtime, worker_id="audit-job-import")
+    with factory.begin() as session:
+        for _ in range(3):
+            claimed = claim_job(session, worker_id="audit-failure", kinds=(kind,))
+            state = fail_job(
+                session,
+                job_id=claimed.id,
+                attempt=claimed.attempt,
+                worker_id="audit-failure",
+                error_code="DEPENDENCY_UNAVAILABLE",
+                retryable=True,
+            )
+            claimed.available_at = now_utc()
+        assert state == "FAILED"
+        if kind == "IMPORT":
+            target = session.get(ImportBatch, batch_id)
+            path = f"/api/v1/imports/{target.id}/retry"
+            action = "import.retried"
+        else:
+            target = session.get(Application, claimed.application_id)
+            path = f"/api/v1/applications/{target.id}/scoring/retry"
+            action = "scoring.retry_requested"
+        resource_id = target.id
+        revision = target.revision
+    retried = manager.post(path, json={"expected_revision": revision, "reason": "Audit retry test"})
+    assert retried.status_code == 202, retried.text
+    with factory() as session:
+        audit = session.scalar(select(AuditEvent).where(AuditEvent.action == action))
+        job = session.get(Job, audit.job_id)
+        assert job is not None and job.kind == kind and job.state == "QUEUED"
+        assert (job.import_id if kind == "IMPORT" else job.application_id) == resource_id

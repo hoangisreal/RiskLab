@@ -39,7 +39,7 @@ def migrate(engine: Engine, revision: str = "head") -> None:
 def disposable_postgres() -> Iterator[tuple[URL, str]]:
     configured = os.environ.get("RISKLAB_TEST_DATABASE_URL")
     container: str | None = None
-    with tempfile.TemporaryDirectory(prefix="risklab-pg-", dir="/tmp/opencode") as temporary:
+    with tempfile.TemporaryDirectory(prefix="risklab-pg-") as temporary:
         if configured:
             url = make_url(configured)
             if url.database != "risklab_test_control" or url.drivername != "postgresql+psycopg":
@@ -143,6 +143,7 @@ def disposable_postgres() -> Iterator[tuple[URL, str]]:
 class Database:
     owner: Engine
     runtime: Engine
+    worker: Engine
 
 
 @contextmanager
@@ -156,13 +157,19 @@ def disposable_database(
         connection.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(name)))
     owner = create_engine(control.set(database=name), hide_parameters=True)
     application = create_engine(make_url(runtime).set(database=name), hide_parameters=True)
+    worker = create_engine(
+        control.set(database=name),
+        hide_parameters=True,
+        connect_args={"options": "-c role=risklab_worker"},
+    )
     try:
         with owner.begin() as connection:
             connection.exec_driver_sql("REVOKE CREATE ON SCHEMA public FROM PUBLIC")
         migrate(owner, revision)
-        yield Database(owner, application)
+        yield Database(owner, application, worker)
     finally:
         application.dispose()
+        worker.dispose()
         owner.dispose()
         with psycopg.connect(connection_string, autocommit=True) as connection:
             connection.execute(

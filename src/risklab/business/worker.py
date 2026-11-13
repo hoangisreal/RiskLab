@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import signal
 import socket
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -22,7 +23,15 @@ from risklab.business.audit import append_audit
 from risklab.business.catalog import DemoCatalog, PinnedRelease
 from risklab.business.db import make_engine, session_factory
 from risklab.business.errors import AppError
-from risklab.business.jobs import claim_job, complete_job, fail_job
+from risklab.business.identity import identity_lock
+from risklab.business.jobs import (
+    LEASE_SECONDS,
+    claim_job,
+    complete_job,
+    fail_job,
+    heartbeat,
+    owned_job,
+)
 from risklab.business.models import Application, ImportBatch, Job, Prediction
 from risklab.business.scoring import PinnedScoringModel
 from risklab.business.settings import Settings, load_settings
@@ -54,20 +63,6 @@ def _fail(
             error_code=code,
             retryable=retryable,
         )
-        if state is not None and job.kind == "SCORING" and job.application_id is not None:
-            application = session.get(Application, job.application_id)
-            if application is not None:
-                application.scoring_state = "FAILED" if state == "FAILED" else "QUEUED"
-        if state is not None and job.kind == "IMPORT" and job.import_id is not None:
-            batch = session.get(ImportBatch, job.import_id)
-            if batch is not None and batch.state == "RUNNING":
-                if state == "FAILED":
-                    batch.state = "FAILED"
-                    batch.retryable = retryable
-                    batch.errors = [{"row": None, "field": None, "code": code}]
-                    batch.revision += 1
-                else:
-                    batch.state = "QUEUED"
         return state
 
 
@@ -91,16 +86,15 @@ def _run_import(factory: object, runtime: WorkerRuntime, job: Job, worker_id: st
         _fail(factory, job, worker_id, code=code, retryable=True)
         return
     with factory.begin() as session:  # type: ignore[attr-defined]
-        current = session.get(Job, job.id)
-        if (
-            current is None
-            or current.state != "RUNNING"
-            or current.attempt != job.attempt
-            or current.lease_owner != worker_id
-        ):
+        identity_lock(session, shared=True)
+        current = owned_job(session, job.id, job.attempt, worker_id)
+        if current is None:
             return  # Lease was reclaimed; the newer attempt owns completion.
-        import_service.persist_import(session, import_id=job.import_id, prepared=prepared)
-        complete_job(session, job_id=job.id, attempt=job.attempt, worker_id=worker_id)
+        import_service.persist_import(
+            session, import_id=job.import_id, prepared=prepared, job_id=job.id
+        )
+        if not complete_job(session, job_id=job.id, attempt=job.attempt, worker_id=worker_id):
+            raise RuntimeError("Lease expired during persistence; rollback all results")
 
 
 def _run_scoring(factory: object, runtime: WorkerRuntime, job: Job, worker_id: str) -> None:
@@ -139,13 +133,8 @@ def _run_scoring(factory: object, runtime: WorkerRuntime, job: Job, worker_id: s
         return
     release = scorer.release
     with factory.begin() as session:  # type: ignore[attr-defined]
-        current = session.get(Job, job.id)
-        if (
-            current is None
-            or current.state != "RUNNING"
-            or current.attempt != job.attempt
-            or current.lease_owner != worker_id
-        ):
+        current = owned_job(session, job.id, job.attempt, worker_id)
+        if current is None:
             return
         application = session.get(Application, job.application_id)
         if application is None:
@@ -188,14 +177,19 @@ def _run_scoring(factory: object, runtime: WorkerRuntime, job: Job, worker_id: s
             job_id=job.id,
             changes={"state": "SUCCEEDED", "prediction_id": str(prediction.id)},
         )
-        complete_job(session, job_id=job.id, attempt=job.attempt, worker_id=worker_id)
+        if not complete_job(session, job_id=job.id, attempt=job.attempt, worker_id=worker_id):
+            raise RuntimeError("Lease expired during persistence; rollback all results")
 
 
 def run_once(engine: object, runtime: WorkerRuntime, *, worker_id: str) -> bool:
     """Claim and process one job. Returns False when no job was due."""
     factory = session_factory(engine)  # type: ignore[arg-type]
     with factory.begin() as session:
-        job = claim_job(session, worker_id=worker_id)
+        job = claim_job(
+            session,
+            worker_id=worker_id,
+            kinds=("IMPORT", "SCORING") if runtime.scorer is not None else ("IMPORT",),
+        )
         if job is None:
             return False
         claimed = Job(
@@ -216,10 +210,30 @@ def run_once(engine: object, runtime: WorkerRuntime, *, worker_id: str) -> bool:
             if application is not None:
                 application.scoring_state = "RUNNING"
     handler = _run_import if claimed.kind == "IMPORT" else _run_scoring
+    stop_heartbeat = threading.Event()
+
+    def renew_lease() -> None:
+        while not stop_heartbeat.wait(LEASE_SECONDS / 3):
+            try:
+                with factory.begin() as session:
+                    if not heartbeat(
+                        session, job_id=claimed.id, attempt=claimed.attempt, worker_id=worker_id
+                    ):
+                        return
+            except Exception:
+                # A failed renewal cannot authorize a result commit: the final
+                # fenced transaction independently checks ownership and expiry.
+                return
+
+    renewer = threading.Thread(target=renew_lease, daemon=True)
+    renewer.start()
     try:
         handler(factory, runtime, claimed, worker_id)
     except Exception:
         _fail(factory, claimed, worker_id, code="WORKER_ERROR", retryable=True)
+    finally:
+        stop_heartbeat.set()
+        renewer.join()
     return True
 
 

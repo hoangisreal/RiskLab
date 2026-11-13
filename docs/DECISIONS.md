@@ -96,3 +96,32 @@ của pipeline mới. Quyền train lại **không** bao gồm quyền mở lạ
   `reports/legacy/`, not an accepted baseline.
 - Early design drafts proposed Pandera and Locust; D10 and the httpx load
   script supersede those choices.
+
+
+## Review ứng dụng và vận hành — 2026-11-13
+
+| ID | Quyết định | Lý do / giới hạn |
+|---|---|---|
+| D28 | Business worker phải kiểm tra protocol, runtime versions và ordered columns/groups; legacy registry tải evaluated artifact đúng hash | Tránh provenance đúng trên metadata nhưng bytes hoặc feature/runtime thực tế khác. Không sửa lock/reference lịch sử; release thiếu metadata bị từ chối, không tự gán lại evidence |
+| D29 | Mở lại B06-T03; deploy script chỉ preflight, `--execute` dừng cho đến khi có quy trình release được nghiệm thu | SSH chain cũ không áp manifest và có thể che lỗi migration bằng health của release cũ. VPS/deploy vẫn cần authorization và evidence B07 |
+| D30 | Giữ một bản đồ tài liệu và một nguồn trạng thái; lịch sử evidence có nhãn riêng | [README tài liệu](README.md), [PROGRESS](PROGRESS.md); không compact code, tạo persistent memory hay chép lại contracts |
+
+## UI workspace — yêu cầu owner 2026-11-13
+
+| ID | Quyết định | Lý do / giới hạn |
+|---|---|---|
+| D31 | UI Enterprise SaaS light mode, desktop-first: Tailwind v4, shadcn/ui, TanStack Table v8, Recharts | Owner bổ sung yêu cầu tám màn; ưu tiên Application Detail và Analyst → Manager. Không thay RBAC hoặc tự mở rộng Advanced dashboard; charts là counts thật, registry chỉ đọc, Settings không chỉnh secrets/release |
+
+## Release preflight — 2026-11-13
+
+| ID | Quyết định | Lý do / giới hạn |
+|---|---|---|
+| D32 | Deployment manifest `risklab-release/2` pin thêm `release.json` và `comparison.json`; preflight render đúng image/catalog từ manifest, tách `--example` khỏi release thật | Model hash riêng không bind threshold/policy/runtime metadata. V1 không được tự coi đủ guards. Bundle/backup input thiếu được ghi NOT CHECKED; Compose config pass không là deploy/rollback/restore evidence. Giữ D29 và không thay scoring contract/selection lock |
+
+
+## Review độc lập và gọn repo — 2026-11-13
+
+| ID | Quyết định | Lý do / giới hạn |
+|---|---|---|
+| D33 | Bỏ controller Wonder/Spark/Sol, scripts/tests/docs riêng khỏi repo theo owner; gọi Muse CLI trực tiếp khi cần review | Controller phục vụ phát triển và không là dependency của RiskLab. Review độc lập dùng `muse-wonder-1.0`, requested effort `xhigh`; raw review logs giữ local, không đưa vào source |
+| D34 | Gộp tám batch thành backlog còn mở; compact agent/human guides và trạng thái hiện hành; giữ contracts cùng ML evidence | Người đọc bắt đầu ở docs/README. Không minify code, xóa runtime/tests fixtures, đổi protocol-hashed ML sources hoặc sửa lock/reference. Presentation và CatBoost scratch local được ignore |

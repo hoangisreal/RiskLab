@@ -52,6 +52,7 @@ class PinnedRelease(BaseModel):
     threshold: float | None = Field(default=None, ge=0, le=1)
     policy_version: str | None = Field(default=None, min_length=1, max_length=128)
     protocol_hashes: dict[str, str] = Field(default_factory=dict)
+    library_versions: dict[str, str | None] = Field(default_factory=dict)
     feature_columns: list[str] = Field(default_factory=list)
 
 

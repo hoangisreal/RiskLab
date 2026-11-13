@@ -1,49 +1,38 @@
-# Tài liệu RiskLab
+# RiskLab — bản đồ project
 
-RiskLab là **decision-support simulation**, không phải hệ thống phê duyệt tín dụng
-thực tế. Tài liệu phân biệt hai trạng thái:
+**RiskLab là mô phỏng hỗ trợ quyết định tín dụng.** Analyst đề xuất; Manager chốt;
+Admin quản lý tài khoản. Điểm số model không tạo quyết định của con người.
 
-- **Hiện có:** nền tảng ML, scoring API contract 1.1, CLI, tests, Docker và CI.
-  Kết quả đã ghi nhận nằm trong [RESULTS.md](RESULTS.md); không phải kết quả vừa chạy lại.
-- **Đã bổ sung local:** Next.js shell/login/Admin + workflow UI, business FastAPI
-  riêng, PostgreSQL/Alembic, sessions/RBAC, account audit, local storage,
-  import/scoring worker, review/decision, báo cáo cơ bản và VPS delivery tooling.
-- **Còn triển khai:** deploy VPS/TLS, backup ngoài VPS và nghiệm thu B07 trên
-  môi trường thật. Trạng thái task/checks hiện tại xem [PROGRESS](PROGRESS.md).
+**Hiện có:** ML/scoring contract 1.1; ứng dụng Next.js + FastAPI/PostgreSQL;
+import → worker scoring → review → decision; báo cáo; CI và công cụ vận hành local.
 
-Không dùng đặc tả mục tiêu làm bằng chứng rằng chức năng đã hoạt động.
+**Chưa nghiệm thu:** VPS/TLS, release từ registry và backup ngoài VPS. Kết quả thực chạy, phạm vi và blockers chỉ ghi tại
+[PROGRESS](PROGRESS.md); không suy ra acceptance từ đặc tả hoặc task DONE.
 
-## Lộ trình đọc
+## Đọc nhanh theo nhu cầu
 
-| Bạn muốn làm gì? | Đọc tài liệu |
+| Nhu cầu | Nguồn chuẩn |
 |---|---|
-| Hiểu sản phẩm và giới hạn MVP | [PRD](product/prd.md) |
-| Biết ai được làm gì | [RBAC và separation of duties](product/rbac.md) |
-| Hiểu trạng thái và quy tắc chuyển trạng thái | [Workflow](product/workflow.md) |
-| Kiểm tra điều kiện hoàn thành | [Acceptance criteria](product/acceptance.md) |
-| Chọn task và triển khai từng batch | [MVP task backlog](tasks/README.md) |
-| Hiểu kiến trúc ứng dụng mục tiêu | [Architecture](architecture/overview.md) |
-| Đọc code và bắt đầu maintain | [Development guide](development/maintaining.md) |
-| Chạy web/API/PostgreSQL local | [Application guide](development/application.md) |
-| Quay/chạy kịch bản demo synthetic | [Demo script](development/demo.md) |
-| Hiểu code ML hiện có | [PROJECT.md](PROJECT.md) |
-| Chạy ML/CLI và scoring API hiện có | [OPERATIONS.md](OPERATIONS.md) |
-| Chuẩn bị deploy MVP | [Deployment plan](operations/deployment.md) |
-| Chuẩn bị khôi phục dữ liệu | [Backup/restore plan](operations/backup-restore.md) |
-| Xem quyết định và tiến độ | [Decisions](DECISIONS.md), [Progress](PROGRESS.md) |
-| Kiểm tra contract hiện có | [API](api_contract.md), [Data](data_contract.md) |
-| Implement contracts B00 | [Business API v1](business_api_contract.md), [Demo import](demo_import_contract.md) — specification, chưa có business endpoints |
-| Refactor không phá ML/CLI consumers | [ML compatibility checklist](development/ml-compatibility.md) |
-| Đọc bằng chứng và giới hạn ML | [Results](RESULTS.md), [Model card](model_card.md) |
+| Nắm code đang chạy và các entrypoint | [Kiến trúc](architecture/overview.md) |
+| Cài/chạy web, API, worker, PostgreSQL và tests | [Ứng dụng local](development/application.md) |
+| Review/sửa code, chọn checks | [Maintain](development/maintaining.md) |
+| Chạy demo ba vai trò bằng synthetic data | [Demo](development/demo.md) |
+| Phạm vi, quyền, state, tiêu chí nghiệm thu | [PRD](product/prd.md), [RBAC](product/rbac.md), [workflow](product/workflow.md), [AC](product/acceptance.md) |
+| Request/response và import format | [Business API v1](business_api_contract.md), [demo import](demo_import_contract.md) |
+| ML modules, commands và tương thích artifact | [PROJECT](PROJECT.md), [OPERATIONS](OPERATIONS.md), [compatibility](development/ml-compatibility.md) |
+| Contract scoring và dữ liệu | [Scoring API](api_contract.md), [data](data_contract.md) |
+| Kết quả ML đã ghi nhận, giới hạn model | [RESULTS](RESULTS.md), [model card](model_card.md) |
+| Release, backup và khôi phục | [Deployment](operations/deployment.md), [backup/restore](operations/backup-restore.md) |
+| Task và lý do các quyết định | [Backlog](tasks/README.md), [DECISIONS](DECISIONS.md) |
 
-## Quy ước tài liệu
+## Context để tiếp tục công việc
 
-- Hướng dẫn người dùng/developer mới viết bằng tiếng Việt. Code, identifier,
-  docstring, comment kỹ thuật và tài liệu agent dùng tiếng Anh.
-- README portfolio bằng tiếng Anh. Tài liệu ML lịch sử được giữ nguyên để bảo toàn
-  bằng chứng; không dịch hoặc thay metric chỉ để đồng bộ hình thức.
-- PRD là nguồn chuẩn về phạm vi; RBAC về quyền; workflow về transition;
-  acceptance về nghiệm thu. Tài liệu khác liên kết thay vì sao chép các bảng này.
-- Thay đổi quyết định cần bổ sung [decision log](DECISIONS.md), không viết lại lịch sử.
-- Coding agent bắt đầu từ [AGENTS.md](../AGENTS.md). Đây là hướng dẫn làm việc,
-  không phải một bản kiến trúc hoặc persistent memory khác.
+Đọc trang này → trạng thái đầu [PROGRESS](PROGRESS.md) → contract và code liên quan
+đến task. Agent tuân theo [AGENTS.md](../AGENTS.md); giao việc dùng
+[handoff template](tasks/handoff-template.md). Không cần đọc lại toàn bộ lịch sử
+thử nghiệm để sửa một endpoint hoặc màn hình.
+
+Hướng dẫn mới bằng tiếng Việt; portfolio README bằng tiếng Anh; code và agent
+instructions bằng tiếng Anh. Liên kết nguồn chuẩn thay vì chép lại quy tắc.
+Giữ nguyên bằng chứng ML lịch sử và bổ sung quyết định mới, không ghi đè lock,
+reference hoặc metric. Không mở Test partition để kiểm tra các sửa đổi thông thường.

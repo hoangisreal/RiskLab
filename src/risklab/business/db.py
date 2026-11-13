@@ -8,7 +8,7 @@ from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 from risklab.business.settings import Settings
 
 # Advance alongside an additive migration; readiness must not accept arbitrary schema heads.
-SCHEMA_REVISION = "0004_workflow"
+SCHEMA_REVISION = "0005_worker_permissions"
 
 
 class Base(DeclarativeBase):

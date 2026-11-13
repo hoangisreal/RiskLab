@@ -24,6 +24,7 @@ build/
 .env.*
 !.env.example
 /.secrets/
+/deploy/secrets/
 
 # Application frontend dependencies and generated output
 node_modules/
@@ -37,3 +38,7 @@ test-results/
 
 # Built feature tables (regenerable)
 /features/
+
+# Local companion material and experiment scratch output
+/presentation/
+/catboost_info/

@@ -1,128 +1,122 @@
-# Chạy ứng dụng nghiệp vụ local
+# Chạy RiskLab local
 
-Đã có B01/B02 và workflow B03–B05: Manager import → worker chấm điểm →
-Analyst review → Manager quyết định mô phỏng, kèm báo cáo cơ bản. Scoring API
-1.1 cũ vẫn là entrypoint riêng và không được public để bỏ qua authentication.
+Cần Python 3.12 qua `uv`, Node.js 24 và Docker daemon. Stack gồm PostgreSQL,
+business FastAPI, worker và Next.js. Contracts tại [Business API](../business_api_contract.md),
+[import](../demo_import_contract.md). Trạng thái/checks tại [PROGRESS](../PROGRESS.md).
 
-## Yêu cầu
-
-- Python 3.12 qua `uv`, Docker daemon, Node.js 24 (đã kiểm tra 24.22.1).
-- Database local riêng trên `127.0.0.1:15432`; API `127.0.0.1:8000`; Next.js 3000.
-- Đây là môi trường phát triển, không thay thế production VPS/HTTPS runbook.
-
-## Khởi tạo
+## Khởi động đủ stack synthetic
 
 ```bash
 make setup
-make app-db           # tạo secret files nếu chưa có, up PostgreSQL và provision local logins
-make app-migrate      # dùng owner credential riêng; không chạy migration bằng API login
-cd apps/web
-npm ci --ignore-scripts
+cd apps/web && npm ci --ignore-scripts
 cd ../..
-env -u RISKLAB_DATABASE_URL RISKLAB_DATABASE_URL_FILE=.secrets/local_api_url \
-  uv run risklab-app bootstrap-admin admin.demo
+make app-local
+make app-status
 ```
 
-Bootstrap yêu cầu nhập và xác nhận mật khẩu ẩn (12–128 ký tự), chỉ chạy khi bảng
-tài khoản trống và ghi SYSTEM audit. Không có tài khoản mặc định trong ứng dụng.
-Admin tiếp tục tạo Analyst/Manager bằng web; giữ mật khẩu qua kênh riêng an toàn.
+Mở **http://localhost:3000** để Origin khớp CSRF. `app-local` lần lượt provision DB,
+migrate, chuẩn bị model/catalog, build và chạy API/worker/standalone web ở nền.
+Các cổng loopback là DB 15432, API 8000, web 3000.
 
-Ba terminal (worker chỉ cần khi chạy import/scoring thật):
+| Tài nguyên local | Vị trí |
+|---|---|
+| Admin/Manager/Analyst | `local.admin`, `local.manager`, `local.analyst` |
+| Mật khẩu ngẫu nhiên, owner-only | `.secrets/local_demo_accounts.json` |
+| CSV để Manager import | `data/application/local-demo/import.csv` |
+| Model/catalog/configs/objects synthetic | `data/application/local-demo/` |
+| Process state, private logs, ảnh smoke khi có | `reports/operations/application-local/` |
+
+Model `synthetic-local-v1` fit 500 Train rows synthetic bằng shared features.
+Catalog có 3 hồ sơ, 2 đủ dữ liệu để scoring và 1 thiếu lịch sử. Comparison để trống
+vì recipe này kiểm tra workflow. Các metric ML lịch sử có model/run/lock riêng.
+Kịch bản ba role tại [demo](demo.md).
 
 ```bash
+make app-stop    # dừng đúng API/worker/web do launcher tạo, giữ PostgreSQL/data
+make app-start   # dùng bundle và build đã chuẩn bị
+make app-status
+# Build lại sau sửa frontend, dừng processes trước:
+make app-stop
+make app-build
+make app-start
+# Khi muốn dừng cả DB:
+docker compose -f deploy/compose.local.yml stop
+```
+
+Launcher kiểm tra PID/start-time, giữ credentials và không ghi đè account khác
+cùng tên. Bundle thay đổi protocol/runtime sẽ bị từ chối. Kiểm tra nguyên nhân
+trước khi chuẩn bị output mới, không sửa hash của artifact cũ để ép load.
+
+## Phát triển từng service hoặc dùng bundle riêng
+
+```bash
+make app-db
+make app-migrate
+# Bootstrap chỉ dành cho DB chưa có account, nhập password qua hidden prompt:
+env -u RISKLAB_DATABASE_URL RISKLAB_DATABASE_URL_FILE=.secrets/local_api_url \
+  uv run risklab-app bootstrap-admin admin.demo
+# Ba terminal:
 make app-api
 make app-worker
 make app-web
 ```
 
-Worker và API cần catalog/model đã ghim của operator (browser không chọn
-đường dẫn nào):
+API và worker nhận settings qua environment, không tự đọc `.env`. Với bundle
+operator chuẩn bị, đặt cùng các biến dưới đây cho cả hai process.
 
 ```bash
-export RISKLAB_CATALOG_FILE=/path/to/catalog.json
-export RISKLAB_CATALOG_SHA256=<sha256 của catalog>
-export RISKLAB_RELEASE_FILE=/path/to/release.json
-export RISKLAB_MODEL_FILE=/path/to/model.pkl
-# Tùy chọn: RISKLAB_COMPARISON_FILE=/path/to/comparison.json
-# (mẫu đã ghi bằng chứng Selection: deploy/comparison.example.json)
+export RISKLAB_APP_ROOT=/absolute/demo-root
+export RISKLAB_CONFIG_DIR=/absolute/demo-root/configs
+export RISKLAB_STORAGE_ROOT=/absolute/demo-root/objects
+export RISKLAB_CATALOG_FILE=/absolute/demo-root/catalog.json
+export RISKLAB_CATALOG_SHA256=CATALOG_SHA256
+export RISKLAB_RELEASE_FILE=/absolute/demo-root/release.json
+export RISKLAB_MODEL_FILE=/absolute/demo-root/model.pkl
+# Tùy chọn: RISKLAB_COMPARISON_FILE=/absolute/demo-root/comparison.json
 ```
 
-Thiếu các biến trên, import trả `503 DEPENDENCY_UNAVAILABLE` và scoring job
-thất bại có thể thử lại với mã `MODEL_UNAVAILABLE`; hệ thống không tự suy
-điểm số thay thế.
+Release pin model hash, `library_versions`, đầy đủ `protocol_hashes`, ordered
+`feature_columns` và `feature_groups`. `config_dir` phải là `root/configs` đã xác
+minh. Thiếu catalog khiến import unavailable. Worker thiếu scorer vẫn xử lý import,
+giữ scoring ở QUEUED và không tiêu thụ attempts; sau khi sửa bundle phải restart
+worker để nạp model. Schema chuẩn tại
+`business/db.py`, migration hiện có `0005_worker_permissions`.
 
-Mở **http://localhost:3000**, không đổi sang một origin khác khi chưa cấu hình
-`RISKLAB_ORIGIN`: CSRF kiểm tra Origin chính xác. Next.js proxy `/api/v1/*` tới
-backend; không có DB credentials trong frontend. Server-side authorization thuộc
-FastAPI, kể cả khi mở thẳng URL Admin hoặc gọi API không qua UI.
+## UI và quyền
 
-## Secrets và local DB
+| Route | Khả năng |
+|---|---|
+| `/` | Overview workload trong quyền Analyst/Manager, kết nối app |
+| `/applications`, `/review-queue` | Search/filter/pagination phía server, TanStack sort trên trang hiện tại. Queue mặc định Analyst ASSIGNED, Manager PENDING_DECISION |
+| `/applications/[id]` | Prediction/provenance/explanation, Analyst draft/submit, Manager return/decide, history |
+| `/imports` | Manager import catalog, retry giữ idempotency cho cùng upload intent |
+| `/models`, `/reports` | Pinned model chỉ đọc, workload/comparison thực có. Registry mutation qua operator CLI |
+| `/audit` | Admin account audit, business users đi tới history theo hồ sơ |
+| `/settings`, `/admin/users` | Session/quyền hiện tại, Admin quản lý accounts |
 
-- `.secrets/` không commit; scripts tạo file bằng exclusive creation, mode 0600,
-  không in giá trị và không overwrite file đã có. Database URL files dành riêng
-  owner/API/worker. Không copy các development secrets này sang public demo.
-- `make app-db` provision lại **local** API/worker login từ secret files, không
-  thao tác server khác hoặc production. Owner URL phải là database local riêng.
-- Runtime login không là owner/superuser và không update/delete audit hoặc DDL.
-  Login passwords được provision từ host, không nới file permissions để PostgreSQL
-  container UID đọc host secrets. Compose local chỉ mount owner password khi init.
-- Giữ local DB volume và secret files đồng bộ. Không tự xóa volume khi password
-  không khớp; kiểm tra configuration/provisioning trước. Không dùng `down -v` để
-  “sửa” môi trường có dữ liệu cần giữ.
-- Dừng local DB mà giữ dữ liệu: `docker compose -f deploy/compose.local.yml stop`.
-- App settings lấy từ các biến `RISKLAB_*`, không tự đọc `.env` hoặc protocol YAML.
-  Chỉ đặt một trong `RISKLAB_DATABASE_URL` và `RISKLAB_DATABASE_URL_FILE`.
-- `RISKLAB_ENVIRONMENT=production` yêu cầu DB URL + HTTPS `RISKLAB_ORIGIN`; cookie
-  dùng `__Host-risklab_session` Secure/HttpOnly/SameSite. Local dùng cookie riêng.
+UI dùng Tailwind v4, shadcn/ui, TanStack Table v8 và Recharts, light mode,
+desktop/mobile. Conflict cần reload có xác nhận bỏ edits. Dialog giữ focus và
+hỗ trợ cancel/Escape. FastAPI quyết định role/object access theo [RBAC](../product/rbac.md).
 
-## Kiểm tra
+## Kiểm tra và vận hành
 
 ```bash
 make test
 uv run pytest tests/business tests/unit/test_business_foundation.py
 cd apps/web
-npm run lint
-npm run typecheck
-npm run format:check
-NEXT_TELEMETRY_DISABLED=1 npm run build
+npm run lint && npm run typecheck && npm run format:check && npm run build
 npm run test:e2e
 npm run test:e2e:workflow
-npm audit
 ```
 
-`test:e2e:workflow` dùng backend/cổng riêng (18001/13001) vì giới hạn đăng
-nhập 10 lần/5 phút theo IP là hành vi thật của sản phẩm; hai suite không
-dùng chung cửa sổ rate limit.
+Business tests dùng DB disposable và grants thật. Docker thiếu thì PostgreSQL
+checks skip và chưa có evidence DB. CI control URL chỉ được trỏ test instance
+riêng tên `risklab_test_control`. E2E dùng port 13000/18000 và 13001/18001 riêng
+để tránh dùng chung cửa sổ rate limit 10 login/5 phút. Dọn đúng container run ID.
 
-Python business tests tạo PostgreSQL container/database riêng và non-owner login,
-chạy migrations thật, không dùng SQLite. Nếu không có Docker, tests này **skip**
-và không được tính là đã chứng minh DB behavior. CI có thể cung cấp
-`RISKLAB_TEST_DATABASE_URL` **chỉ** tới control database tên `risklab_test_control`;
-fixture tạo/drop database con có prefix `risklab_test_`, cần owner test credentials.
-Control phải nằm trên **PostgreSQL test instance riêng**, không cùng cluster
-production: group roles là cluster-wide. Không dùng application/prod URL làm test control.
-
-Browser tests bắt buộc Docker, chạy API với DB disposable trên port 18000 và
-Next.js trên 13000. Script `browser_backend` seed credentials synthetic **chỉ
-trong test DB**; không phải deploy entrypoint. Playwright kiểm tra desktop/mobile,
-ba role, session revocation, direct API denial, connection failure/retry. Teardown
-dọn đúng container có label run ID; không dọn các container/data khác trên máy.
-Screenshots/traces nằm trong `apps/web/test-results/` và không commit.
-
-## Security/compatibility notes
-
-- CSRF token lưu trong bộ nhớ browser; bootstrap/reload xoay token. Client chỉ
-  retry khi backend trả `CSRF_FAILED` trước mutation, không retry network error/500.
-- Login bị giới hạn 10 lần/5 phút theo IP và username, lưu ở PostgreSQL để các
-  API process dùng chung counters. Không trust tùy ý `X-Forwarded-For`; proxy
-  forwarding/trust phải được cấu hình trong B06.
-- Role change/disable/reset password thu hồi sessions; identity mutations khóa
-  transaction ngắn để last-admin check không race/deadlock actor/target rows.
-- Static Next.js shell không chứa user data. Data requests dùng no-store; UI
-  guards không phải authorization. Error boundary không render raw exceptions.
-- Next.js 16.4.6/React 19.3.1 pinned. ESLint 9.39.5 được giữ vì peer compatibility
-  của Next plugins; có deprecation warning. `minimatch` >=7 trước 11.0.1 được
-  override có phạm vi để xử lý GHSA-g3hv-75wg-m249; không override bản 3 có API cũ.
-  Recheck lint/build/E2E/audit khi cập nhật các pins này, không chạy audit fix --force.
-- Protocol-hashed ML sources/configs/SQL không đổi. Business settings/migrations
-  đặt ngoài `configs/` để không invalidate bundle vì thêm app config.
+Secrets local mode 0600 và DB volume phải đồng bộ, tránh `down -v`. API/worker
+login tách owner/migrator. Chỉ đặt một trong `RISKLAB_DATABASE_URL` hoặc `_FILE`.
+CSRF token ở memory browser, mutation no-store/same-origin. Build artifacts,
+credentials, data và traces được git-ignore. Remote release, secrets rotation và
+backup/restore theo [deployment](../operations/deployment.md) và
+[backup](../operations/backup-restore.md).

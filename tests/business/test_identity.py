@@ -322,3 +322,70 @@ def test_bootstrap_admin_only_on_empty_database(database, monkeypatch):
     with session_factory(database.runtime)() as session:
         assert len(session.scalars(select(User)).all()) == 1
         assert session.scalar(select(AuditEvent)).actor_type == "SYSTEM"
+
+
+def test_session_is_rechecked_after_account_lock_wait(identity_env, monkeypatch):
+    """Model a reset that commits after the token read and before the user lock."""
+    from threading import Event
+
+    from sqlalchemy import delete, event
+
+    app, factory = identity_env
+    client = signed_in(app)
+    token = digest(client.cookies["risklab_dev_session"])
+    reached = Event()
+    resume = Event()
+    engine = app.state.engine
+
+    def pause(connection, cursor, statement, parameters, context, executemany):
+        if "FROM users" in statement and "FOR SHARE" in statement:
+            reached.set()
+            assert resume.wait(5)
+
+    event.listen(engine, "before_cursor_execute", pause)
+    try:
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            result = pool.submit(
+                client.post,
+                "/api/v1/admin/users",
+                json={
+                    "username": "revoked.attempt",
+                    "password": PASSWORD,
+                    "role": "ANALYST",
+                },
+            )
+            assert reached.wait(5)
+            with factory.begin() as session:
+                session.execute(delete(LoginSession).where(LoginSession.token_hash == token))
+            resume.set()
+            assert result.result(timeout=5).status_code in {401, 403}
+    finally:
+        resume.set()
+        event.remove(engine, "before_cursor_execute", pause)
+    with factory() as session:
+        assert session.scalar(select(User).where(User.username == "revoked.attempt")) is None
+
+
+@pytest.mark.parametrize("trusted", [True, False])
+def test_forwarded_client_ip_rate_limit_respects_proxy_boundary(identity_env, trusted):
+    from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+
+    app, _ = identity_env
+    peer = "192.0.2.10" if trusted else "192.0.2.99"
+    wrapped = ProxyHeadersMiddleware(app, trusted_hosts=["192.0.2.10"])
+    client = TestClient(wrapped, client=(peer, 1234))
+    client.headers.update({"origin": "http://testserver", "x-forwarded-for": "198.51.100.1"})
+    csrf = client.get("/api/v1/auth/csrf").json()["data"]["csrf_token"]
+    client.headers["x-csrf-token"] = csrf
+    for _ in range(10):
+        assert (
+            client.post(
+                "/api/v1/auth/login", json={"username": "missing.user", "password": PASSWORD}
+            ).status_code
+            == 401
+        )
+    client.headers["x-forwarded-for"] = "198.51.100.2"
+    response = client.post(
+        "/api/v1/auth/login", json={"username": "manager.demo", "password": PASSWORD}
+    )
+    assert response.status_code == (200 if trusted else 429)

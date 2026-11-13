@@ -1,12 +1,10 @@
 # RiskLab — Current ML Architecture
 
-This document describes the **implemented ML/scoring foundation**, not the
-planned business application. The agreed MVP architecture is documented separately
-in [architecture/overview.md](architecture/overview.md); scope, roles and workflow
-are in [product/prd.md](product/prd.md). Next.js shell/login/Admin UI, PostgreSQL
-identity migrations and account/RBAC management now have a separate
-[local application guide](development/application.md). Application import,
-review/decision and worker orchestration are not implemented yet.
+This document describes the **implemented ML/scoring foundation**. The business
+application (import, worker, review and decision) is documented in
+[architecture/overview.md](architecture/overview.md) and the
+[local application guide](development/application.md). Current verification and
+remaining deployment limits live in [PROGRESS.md](PROGRESS.md).
 See [README.md](README.md) for the documentation reading guide.
 
 RiskLab estimates the probability that a loan applicant will have payment

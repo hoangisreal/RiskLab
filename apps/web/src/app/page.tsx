@@ -1,6 +1,20 @@
+"use client";
+import { useSession } from "@/components/session";
+import { OverviewDashboard } from "@/components/resource-page";
 import { ConnectionStatus } from "@/components/connection-status";
 
 export default function Home() {
+  const { user } = useSession();
+  if (user)
+    return (
+      <>
+        <OverviewDashboard />
+        <section className="sheet section-gap">
+          <h2>Kết nối ứng dụng</h2>
+          <ConnectionStatus />
+        </section>
+      </>
+    );
   return (
     <>
       <div className="page-heading">

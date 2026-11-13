@@ -109,3 +109,35 @@ def test_additive_upgrade_from_previous_revision_preserves_accounts(database):
     assert schema_ready(database.runtime)
     with session_factory(database.runtime)() as session:
         assert session.get(User, user_id).username == "existing.account"
+
+
+@pytest.mark.parametrize("database", ["0004_workflow"], indirect=True)
+def test_upgrade_grants_worker_only_operational_permissions(database):
+    with database.worker.begin() as connection:
+        assert connection.scalar(text("SELECT current_user")) == "risklab_worker"
+        assert not connection.scalar(
+            text("SELECT has_column_privilege(current_user, 'users', 'role', 'SELECT')")
+        )
+    migrate(database.owner)
+    with database.worker.begin() as connection:
+        assert connection.scalar(
+            text("SELECT has_column_privilege(current_user, 'users', 'role', 'SELECT')")
+        )
+        assert connection.scalar(
+            text(
+                "SELECT has_column_privilege(current_user, "
+                "'applications', 'scoring_state', 'UPDATE')"
+            )
+        )
+        for table, column, permission in [
+            ("users", "password_hash", "SELECT"),
+            ("users", "role", "UPDATE"),
+            ("applications", "assignee_id", "UPDATE"),
+            ("reviews", "id", "INSERT"),
+            ("decisions", "id", "INSERT"),
+            ("sessions", "token_hash", "SELECT"),
+        ]:
+            assert not connection.scalar(
+                text("SELECT has_column_privilege(current_user, :table, :column, :permission)"),
+                {"table": table, "column": column, "permission": permission},
+            )

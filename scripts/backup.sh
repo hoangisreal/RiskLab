@@ -1,82 +1,42 @@
 #!/usr/bin/env bash
-# Consistent RiskLab backup (B06-T04): pg_dump + immutable objects + manifest.
-# DATABASE_URL_FILE must contain a plain libpq URL (no SQLAlchemy driver suffix).
-# Success is reported only after checksum verification and, when configured,
-# encrypted off-VPS copy verification. A failed run never prunes the last good backup.
+# Publish only a verified backup; incomplete runs cannot displace retention copies.
 set -euo pipefail
-
-BACKUP_ROOT=${BACKUP_ROOT:?Set BACKUP_ROOT}
-DATABASE_URL_FILE=${DATABASE_URL_FILE:?Set DATABASE_URL_FILE with a dump-capable URL file}
-STORAGE_ROOT=${STORAGE_ROOT:?Set STORAGE_ROOT}
-RELEASE_DIR=${RELEASE_DIR:-}
-ENCRYPTION_KEY_FILE=${ENCRYPTION_KEY_FILE:-}
-OFFSITE_DIR=${OFFSITE_DIR:-}
-STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+umask 077
+HELPER="$(cd -- "$(dirname -- "$0")" && pwd)/backup_manifest.py"
+: "${BACKUP_ROOT:?Set BACKUP_ROOT}" "${DATABASE_URL_FILE:?Set DATABASE_URL_FILE}" "${STORAGE_ROOT:?Set STORAGE_ROOT}"
+if [ -n "${OFFSITE_DIR:-}" ]; then
+  : "${ENCRYPTION_KEY_FILE:?Offsite backups require an encryption key file}"
+fi
+mkdir -p "$BACKUP_ROOT"
+# Serialize backup and retention on this destination, including same-second runs.
+exec 9>"$BACKUP_ROOT/.backup.lock"
+flock -n 9
+STAMP=$(date -u +%Y%m%dT%H%M%S.%6NZ)
 DEST="$BACKUP_ROOT/backup-$STAMP"
-mkdir -p "$DEST/objects"
-
-DATABASE_URL=$(cat "$DATABASE_URL_FILE")
-pg_dump --format=custom --no-owner --file="$DEST/database.dump" "$DATABASE_URL"
-cp -a "$STORAGE_ROOT/." "$DEST/objects/"
-if [ -n "$RELEASE_DIR" ]; then
-  mkdir -p "$DEST/release"
-  cp -a "$RELEASE_DIR/." "$DEST/release/"
+WORK=$(mktemp -d "$BACKUP_ROOT/.pending-XXXXXX")
+trap 'rm -rf -- "$WORK"' EXIT
+mkdir -p "$WORK/backup/objects"
+python3 "$HELPER" db "$DATABASE_URL_FILE" pg_dump --format=custom --no-owner --file="$WORK/backup/database.dump"
+cp -a "$STORAGE_ROOT/." "$WORK/backup/objects/"
+if [ -n "${RELEASE_DIR:-}" ]; then
+  mkdir "$WORK/backup/release"
+  cp -a "$RELEASE_DIR/." "$WORK/backup/release/"
 fi
-
-python3 - "$DEST" <<'PY'
-import hashlib, json, sys
-from pathlib import Path
-
-dest = Path(sys.argv[1])
-entries = []
-for path in sorted(p for p in dest.rglob("*") if p.is_file() and p.name != "manifest.json"):
-    data = path.read_bytes()
-    entries.append({"path": str(path.relative_to(dest)), "sha256": hashlib.sha256(data).hexdigest(), "bytes": len(data)})
-manifest = {"backup_id": dest.name, "format": "risklab-backup/1", "files": entries}
-(dest / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
-# Verify what was just written before any copy or prune step may proceed.
-for entry in entries:
-    digest = hashlib.sha256((dest / entry["path"]).read_bytes()).hexdigest()
-    if digest != entry["sha256"]:
-        raise SystemExit(f"checksum mismatch: {entry['path']}")
-print(f"verified {len(entries)} files")
-PY
-
-if [ -n "$OFFSITE_DIR" ]; then
+python3 "$HELPER" create "$WORK/backup" "backup-$STAMP"
+python3 "$HELPER" verify "$WORK/backup"
+# Preserve the verified local copy even if encryption or offsite transport fails.
+mv "$WORK/backup" "$DEST"
+python3 "$HELPER" retain "$BACKUP_ROOT"
+if [ -n "${OFFSITE_DIR:-}" ]; then
   mkdir -p "$OFFSITE_DIR"
-  if [ -n "$ENCRYPTION_KEY_FILE" ]; then
-    ARCHIVE="$OFFSITE_DIR/backup-$STAMP.tar.gz.enc"
-    tar -czf - -C "$BACKUP_ROOT" "backup-$STAMP" \
-      | openssl enc -aes-256-cbc -salt -pbkdf2 -pass "file:$ENCRYPTION_KEY_FILE" -out "$ARCHIVE"
-    echo "offsite encrypted archive: $ARCHIVE"
-  else
-    cp -a "$DEST" "$OFFSITE_DIR/"
-    echo "offsite copy (unencrypted; set ENCRYPTION_KEY_FILE for production): $OFFSITE_DIR/backup-$STAMP"
-  fi
+  tar -czf "$WORK/archive.tar.gz" --transform="s|^$(basename "$DEST")|backup|" -C "$BACKUP_ROOT" "$(basename "$DEST")"
+  openssl enc -aes-256-cbc -salt -pbkdf2 -pass "file:$ENCRYPTION_KEY_FILE" \
+    -in "$WORK/archive.tar.gz" -out "$WORK/archive.enc"
+  openssl enc -d -aes-256-cbc -pbkdf2 -pass "file:$ENCRYPTION_KEY_FILE" \
+    -in "$WORK/archive.enc" -out "$WORK/roundtrip.tar.gz"
+  cmp "$WORK/archive.tar.gz" "$WORK/roundtrip.tar.gz"
+  cp "$WORK/archive.enc" "$OFFSITE_DIR/.backup-$STAMP.pending"
+  cmp "$WORK/archive.enc" "$OFFSITE_DIR/.backup-$STAMP.pending"
+  mv "$OFFSITE_DIR/.backup-$STAMP.pending" "$OFFSITE_DIR/backup-$STAMP.tar.gz.enc"
 fi
-
-# Retention: keep the newest 7 backups, plus the newest backup of each of the
-# last 4 ISO weeks. Only runs after this backup verified successfully.
-python3 - "$BACKUP_ROOT" <<'PY'
-import shutil, sys
-from datetime import datetime
-from pathlib import Path
-
-root = Path(sys.argv[1])
-backups = sorted((p for p in root.glob("backup-*") if p.is_dir()), reverse=True)
-keep = set(backups[:7])
-weeks = {}
-for path in backups:
-    try:
-        week = datetime.strptime(path.name, "backup-%Y%m%dT%H%M%SZ").isocalendar()[:2]
-    except ValueError:
-        continue
-    weeks.setdefault(week, path)
-keep.update(list(weeks.values())[:4])
-for path in backups:
-    if path not in keep:
-        shutil.rmtree(path)
-print(f"retention keeps {len(keep)} backups")
-PY
-
 echo "backup complete: $DEST"

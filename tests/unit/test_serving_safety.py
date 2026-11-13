@@ -52,8 +52,6 @@ def bundle():
 
 
 def test_reload_changes_current_and_failed_reload_keeps_it(monkeypatch, bundle):
-    import mlflow.sklearn
-
     from risklab.registry import client
 
     old = LoadedModel("1", object(), 0.1, "1.1", [])
@@ -70,7 +68,7 @@ def test_reload_changes_current_and_failed_reload_keeps_it(monkeypatch, bundle):
     monkeypatch.setattr(client, "read_reference_profile", lambda *args: None)
     model = SimpleNamespace(feature_names_in_=np.array(["AMT_CREDIT"]))
     loader = Mock(return_value=model)
-    monkeypatch.setattr(mlflow.sklearn, "load_model", loader)
+    monkeypatch.setattr(client, "read_evaluated_model", loader)
     assert http.post("/admin/models/reload").status_code == 403
     response = http.post("/admin/models/reload", headers={"x-admin-key": "synthetic-key"})
     assert response.status_code == 200
@@ -78,7 +76,8 @@ def test_reload_changes_current_and_failed_reload_keeps_it(monkeypatch, bundle):
     assert http.get("/models/current").json()["registered_at_ms"] == 1790000000000
     assert store.current.model is model
     assert store.current.threshold == bundle.threshold
-    loader.assert_called_once_with("models:/risklab-credit-risk/2")
+    assert loader.call_args.args[0]["version"] == "2"
+    assert loader.call_args.args[1] is bundle
     loader.side_effect = ValueError("corrupt artifact")
     assert (
         http.post("/admin/models/reload", headers={"x-admin-key": "synthetic-key"}).status_code
@@ -89,8 +88,6 @@ def test_reload_changes_current_and_failed_reload_keeps_it(monkeypatch, bundle):
 
 @pytest.mark.parametrize("change", ["contract", "versions", "columns", "parity", "groups", "label"])
 def test_registry_load_rejects_bad_bundle_without_swap(monkeypatch, bundle, change):
-    import mlflow.sklearn
-
     from risklab.registry import client
 
     if change == "contract":
@@ -109,7 +106,9 @@ def test_registry_load_rejects_bad_bundle_without_swap(monkeypatch, bundle, chan
     monkeypatch.setattr(client, "read_serving_config", lambda info: bundle)
     monkeypatch.setattr(client, "read_reference_profile", lambda *args: None)
     monkeypatch.setattr(
-        mlflow.sklearn, "load_model", lambda uri: SimpleNamespace(feature_names_in_=columns)
+        client,
+        "read_evaluated_model",
+        lambda info, config: SimpleNamespace(feature_names_in_=columns),
     )
     store = ModelStore()
     old = LoadedModel("1", object(), 0.1, "1.1", [])
@@ -120,8 +119,6 @@ def test_registry_load_rejects_bad_bundle_without_swap(monkeypatch, bundle, chan
 
 
 def test_protocol_mismatch_is_rejected_before_artifact_loading(monkeypatch, bundle):
-    import mlflow.sklearn
-
     from risklab.api.model_store import ModelStoreError
     from risklab.registry import client
 
@@ -130,7 +127,7 @@ def test_protocol_mismatch_is_rejected_before_artifact_loading(monkeypatch, bund
     profile_reader = Mock()
     model_loader = Mock()
     monkeypatch.setattr(client, "read_reference_profile", profile_reader)
-    monkeypatch.setattr(mlflow.sklearn, "load_model", model_loader)
+    monkeypatch.setattr(client, "read_evaluated_model", model_loader)
     store = ModelStore()
     old = LoadedModel("1", object(), 0.1, "1.1", [])
     store.swap(old)
@@ -266,3 +263,23 @@ def test_current_metadata_requires_matching_completed_evaluation(
         assert metadata["final_evaluation"] is None
     (directory / "result.json").unlink()
     assert http.get("/models/current").json()["final_evaluation"] is None
+
+
+def test_evaluated_artifact_hash_checked_before_loading(tmp_path, monkeypatch, bundle):
+    import hashlib
+    import pickle
+
+    import mlflow.artifacts
+
+    from risklab.registry.client import RegistryError, read_evaluated_model
+
+    artifact = tmp_path / "model.pkl"
+    payload = pickle.dumps(SimpleNamespace(feature_names_in_=["AMT_CREDIT"], weight=1))
+    artifact.write_bytes(payload)
+    bundle.model_sha256 = hashlib.sha256(payload).hexdigest()
+    monkeypatch.setattr(mlflow.artifacts, "download_artifacts", lambda **kwargs: str(tmp_path))
+    assert read_evaluated_model({"run_id": "synthetic"}, bundle).weight == 1
+    artifact.write_bytes(pickle.dumps(SimpleNamespace(feature_names_in_=["AMT_CREDIT"], weight=2)))
+    monkeypatch.setattr(pickle, "loads", lambda _: pytest.fail("unverified bytes loaded"))
+    with pytest.raises(RegistryError, match="hash differs"):
+        read_evaluated_model({"run_id": "synthetic"}, bundle)

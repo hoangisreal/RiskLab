@@ -10,7 +10,7 @@ COPY src/ src/
 COPY configs/ configs/
 COPY sql/ sql/
 RUN uv sync --locked --no-dev && useradd --create-home risklab \
-    && mkdir -p data/duckdb_tmp reports features \
+    && mkdir -p data/duckdb_tmp data/application/objects reports features \
     && chown -R risklab data reports features
 
 FROM base AS train

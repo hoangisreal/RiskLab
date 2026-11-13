@@ -1,7 +1,7 @@
 # RBAC và separation of duties
 
-**Trạng thái:** B02 implement local accounts/sessions, account RBAC và Admin UI
-trong business API riêng; ma trận object-level hồ sơ/decision còn cần B03/B04.
+**Trạng thái:** contract quyền cho business API hiện có. Kết quả kiểm chứng local
+và giới hạn nghiệm thu nằm tại [PROGRESS](../PROGRESS.md).
 Scoring API contract 1.1 cũ không được coi là đã có account RBAC.
 Phạm vi sản phẩm: [PRD](prd.md). Transition: [workflow](workflow.md).
 

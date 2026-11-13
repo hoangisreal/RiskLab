@@ -28,8 +28,9 @@ DUMMY_PASSWORD_HASH = HASHER.hash(secrets.token_urlsafe(32))
 IDENTITY_LOCK = 651274001
 
 
-def identity_lock(session: Session) -> None:
-    session.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": IDENTITY_LOCK})
+def identity_lock(session: Session, *, shared: bool = False) -> None:
+    function = "pg_advisory_xact_lock_shared" if shared else "pg_advisory_xact_lock"
+    session.execute(text(f"SELECT {function}(:key)"), {"key": IDENTITY_LOCK})
 
 
 def digest(value: str) -> str:
@@ -58,7 +59,13 @@ def find_session(session: Session, request: Request) -> LoginSession | None:
     token = request.cookies.get(cookie_name(request.app.state.settings), "")
     if not 32 <= len(token) <= 128:
         return None
-    record = session.get(LoginSession, digest(token))
+    # Refresh even if authenticate() already read this token before waiting on
+    # an account lock: password reset may have revoked it in the meantime.
+    record = session.scalar(
+        select(LoginSession)
+        .where(LoginSession.token_hash == digest(token))
+        .execution_options(populate_existing=True)
+    )
     return record if record is not None and record.expires_at > now_utc() else None
 
 

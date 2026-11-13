@@ -2,7 +2,7 @@
 
 **Trạng thái:** checklist nghiệm thu, chưa phải báo cáo các chức năng đã pass.
 Phạm vi theo [PRD](prd.md), quyền theo [RBAC](rbac.md), state theo [workflow](workflow.md).
-Mọi hàng vẫn **chưa nghiệm thu cho MVP**. Bằng chứng ML lịch sử có thể tái sử dụng
+Kết quả local và các AC vận hành còn BLOCKED nằm tại [PROGRESS](../PROGRESS.md). Bằng chứng ML lịch sử có thể tái sử dụng
 chỉ khi version/protocol liên quan được xác minh, không mặc định pass runtime mới.
 
 | ID | Điều kiện đạt | Kiểm tra/bằng chứng cần có |

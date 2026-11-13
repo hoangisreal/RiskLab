@@ -60,7 +60,7 @@ reproduce:
 	@test -n "$(OUT)" || (echo 'Set OUT to an absent or empty output directory'; exit 1)
 	uv run python scripts/reproduce.py --out "$(OUT)"
 
-.PHONY: app-init app-db app-migrate app-api app-web
+.PHONY: app-init app-db app-migrate app-api app-worker app-web
 app-init:
 	uv run python scripts/init_application_dev.py
 
@@ -79,3 +79,27 @@ app-worker:
 
 app-web:
 	cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run dev
+
+.PHONY: app-prepare app-build app-start app-status app-stop
+app-prepare:
+	OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MLFLOW_DISABLE_AGENT_HINT=1 uv run python -m scripts.application_local prepare
+
+app-build:
+	cd apps/web && NEXT_TELEMETRY_DISABLED=1 RISKLAB_API_ORIGIN=http://127.0.0.1:8000 npm run build
+
+app-start:
+	uv run python -m scripts.application_local start
+
+app-status:
+	uv run python -m scripts.application_local status
+
+app-stop:
+	uv run python -m scripts.application_local stop
+
+.PHONY: app-local
+app-local:
+	$(MAKE) app-db
+	$(MAKE) app-migrate
+	$(MAKE) app-prepare
+	$(MAKE) app-build
+	$(MAKE) app-start

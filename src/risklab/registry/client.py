@@ -121,6 +121,27 @@ def read_reference_profile(info: dict[str, Any], config: ServingConfig) -> Refer
     return profile
 
 
+def read_evaluated_model(info: dict[str, Any], config: ServingConfig) -> Any:
+    """Load the exact evaluated bytes, not MLflow's independent reserialization."""
+    import hashlib
+    import pickle
+
+    import mlflow.artifacts
+
+    directory = Path(
+        mlflow.artifacts.download_artifacts(
+            artifact_uri=f"runs:/{info['run_id']}/evaluated_artifact"
+        )
+    )
+    files = list(directory.iterdir()) if directory.is_dir() else []
+    if len(files) != 1 or not files[0].is_file() or files[0].is_symlink():
+        raise RegistryError("evaluated artifact must contain exactly one regular model file")
+    data = files[0].read_bytes()
+    if hashlib.sha256(data).hexdigest() != config.model_sha256:
+        raise RegistryError("evaluated model hash differs from serving_config")
+    return pickle.loads(data)
+
+
 def check_promotion(
     version: str,
     *,

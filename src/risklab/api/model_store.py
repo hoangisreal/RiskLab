@@ -95,11 +95,8 @@ def load_from_registry(
     expected_protocol: dict[str, str] | None = None,
 ) -> LoadedModel:
     """Resolve @champion to a pinned version and load it (startup path)."""
-    import mlflow
-    import mlflow.sklearn
-
     from risklab.registry.client import (
-        MODEL_NAME,
+        read_evaluated_model,
         read_reference_profile,
         read_serving_config,
         resolve_champion,
@@ -117,7 +114,7 @@ def load_from_registry(
     if expected_protocol is not None and config.protocol_hashes != expected_protocol:
         raise ModelStoreError("model feature/config code differs from this serving image")
     profile = read_reference_profile(info, config)
-    model = mlflow.sklearn.load_model(f"models:/{MODEL_NAME}/{version}")
+    model = read_evaluated_model(info, config)
     validate_serving_config(config, expected_contract=expected_contract, model=model)
     loaded = LoadedModel(
         version=version,

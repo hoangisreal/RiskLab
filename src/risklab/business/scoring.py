@@ -18,8 +18,24 @@ from risklab.api.schemas import PredictRequest
 from risklab.api.service import ServiceError, predict
 from risklab.business.catalog import PinnedRelease
 from risklab.business.errors import AppError
+from risklab.features.historical import combined_columns
 from risklab.features.registry import load_registry
-from risklab.manifest import config_hash
+from risklab.manifest import config_hash, library_versions, sha256_file
+from risklab.models.select import protocol_hashes
+
+
+def runtime_protocol_hashes(root: Path, config_dir: Path) -> dict[str, str]:
+    """Bind the effective configs, shared feature SQL and installed ML sources."""
+    if config_dir.resolve() != (root / "configs").resolve():
+        raise AppError(503, "MODEL_UNAVAILABLE", "Scoring requires the verified root configs")
+    hashes = {k: v for k, v in protocol_hashes(root).items() if not k.startswith("configs/")}
+    hashes.update(
+        {
+            f"configs/{p.relative_to(config_dir)}": sha256_file(p)
+            for p in sorted(config_dir.rglob("*.yaml"))
+        }
+    )
+    return hashes
 
 
 @dataclass(frozen=True)
@@ -54,8 +70,21 @@ class PinnedScoringModel:
         if hashlib.sha256(data).hexdigest() != release.model_sha256:
             raise AppError(503, "MODEL_UNAVAILABLE", "Model artifact integrity check failed")
         registry = load_registry(config_dir)
-        if release.feature_contract_version != registry.contract_version:
+        if (
+            release.feature_contract_version != registry.contract_version
+            or set(release.feature_groups) - set(registry.groups)
+            or len(release.feature_groups) != len(set(release.feature_groups))
+        ):
             raise AppError(503, "MODEL_UNAVAILABLE", "Model feature contract is incompatible")
+        if release.protocol_hashes != runtime_protocol_hashes(root, config_dir):
+            raise AppError(503, "MODEL_UNAVAILABLE", "Model protocol differs from the runtime")
+        versions = library_versions()
+        if release.library_versions != versions or any(v is None for v in versions.values()):
+            raise AppError(503, "MODEL_UNAVAILABLE", "Model dependencies differ from the runtime")
+        numeric, categorical = combined_columns(release.feature_groups, config_dir=config_dir)
+        expected_columns = numeric + categorical
+        if release.feature_columns != expected_columns:
+            raise AppError(503, "MODEL_UNAVAILABLE", "Model columns differ from declared groups")
         model = pickle.loads(data)  # noqa: S301 - hash-verified above
         names = getattr(model, "feature_names_in_", None)
         if names is None or list(names) != list(release.feature_columns):

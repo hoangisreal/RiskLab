@@ -1,9 +1,10 @@
 # RiskLab — Operations
 
 **Scope: existing local ML/scoring stack.** These commands do not deploy the
-planned authenticated web application. For the target MVP see the
+authenticated business application. For application operations see the
 [VPS deployment plan](operations/deployment.md) and
-[backup/restore plan](operations/backup-restore.md), both not yet implemented.
+[backup/restore runbook](operations/backup-restore.md). Local tooling exists;
+VPS deployment and off-VPS recovery remain unverified.
 The current localhost API/MLflow configuration must not be exposed as a public
 demo without the new authorization and infrastructure controls.
 

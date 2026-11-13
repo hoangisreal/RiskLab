@@ -2,7 +2,7 @@
 
 ## Scope: existing scoring API
 
-This is the implemented scoring contract, not the planned authenticated business
+This is the implemented scoring contract, separate from the authenticated business
 API. The admin key on model reload is **not** account authentication, RBAC or a
 Manager approval permission. The current public response semantics remain unchanged.
 
@@ -47,16 +47,14 @@ Bundles require `serving_config.json`, an immutable aggregate `reference_profile
 
 `final_evaluation` contains cached aggregate Test metrics, confidence intervals, row count, evaluation run/lock IDs and total Test openings for the exact loaded bundle. It is `null` without a complete matching lock/report/journal record, including legacy reports without their own evaluation run. Reading this metadata never evaluates Test or reads row predictions. `registered_at_ms` is the registry creation timestamp in Unix milliseconds. `feature_schema_hash` hashes the contract version, ordered input columns and served groups; `protocol_hashes` separately exposes config/SQL/implementation hashes. Test results are reporting evidence and never participate in the Selection promotion gate.
 
-## Ranh giới API nghiệp vụ MVP — triển khai một phần
+## Ranh giới API nghiệp vụ MVP
 
-- Contracts cụ thể ở [business API v1](business_api_contract.md) và
-  [demo import](demo_import_contract.md), kèm fixtures synthetic được kiểm tra với
-  raw schema/shared SQL. B01/B02 đã có auth/account/health endpoints; import/review/
-  decision chưa triển khai. Xem [application guide](development/application.md).
-- API nghiệp vụ tương lai có namespace version riêng (dự kiến `/api/v1`), account
-  authentication, object authorization, state/revision guards và audit theo
-  [RBAC](product/rbac.md), [workflow](product/workflow.md). Chưa công bố endpoint
-  hoặc schema chưa có implementation như một contract đang hoạt động.
+- Business API đã triển khai local dưới `/api/v1`: authentication, account/object
+  authorization, import/scoring, review/decision, reports và audit. Contracts:
+  [business API v1](business_api_contract.md), [demo import](demo_import_contract.md).
+- Chạy và kiểm chứng theo [application guide](development/application.md);
+  trạng thái local/VPS tại [PROGRESS](PROGRESS.md). Scoring contract 1.1 vẫn có
+  entrypoint riêng; không đưa legacy routes ra public để bỏ qua RBAC.
 - Model recommendation `approve/review` là tín hiệu minh họa, không phải đề xuất
   Analyst hoặc human decision. Không đổi semantics/rename field của contract 1.1
   âm thầm; consumer cũ cần compatibility tests và migration note khi có thay đổi.
