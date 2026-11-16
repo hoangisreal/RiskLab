@@ -125,3 +125,25 @@ của pipeline mới. Quyền train lại **không** bao gồm quyền mở lạ
 |---|---|---|
 | D33 | Bỏ controller Wonder/Spark/Sol, scripts/tests/docs riêng khỏi repo theo owner; gọi Muse CLI trực tiếp khi cần review | Controller phục vụ phát triển và không là dependency của RiskLab. Review độc lập dùng `muse-wonder-1.0`, requested effort `xhigh`; raw review logs giữ local, không đưa vào source |
 | D34 | Gộp tám batch thành backlog còn mở; compact agent/human guides và trạng thái hiện hành; giữ contracts cùng ML evidence | Người đọc bắt đầu ở docs/README. Không minify code, xóa runtime/tests fixtures, đổi protocol-hashed ML sources hoặc sửa lock/reference. Presentation và CatBoost scratch local được ignore |
+
+## Docker demo local-first — 2026-11-15
+
+| ID | Quyết định | Lý do / giới hạn |
+|---|---|---|
+| D35 | Thêm `deploy/compose.demo.yml` làm đường chạy chính cho người mới: PostgreSQL + `demo-init` một lần (migrate, provision login, build bundle synthetic, seed tài khoản demo) + API/worker/web; mật khẩu demo cố định chỉ cho stack loopback này, ghi đè qua env | Trước đây người mới phải chạy launcher trên host bằng Python/Node. Demo passwords không dùng cho production (`compose.prod.yml` giữ secrets theo file, digest ghim). Worker ghi heartbeat file cho Docker healthcheck; bundle demo ghi được bởi worker vì DuckDB cần temp dir, production vẫn read-only |
+| D36 | Web image nhận `RISKLAB_API_ORIGIN` qua build arg (mặc định `http://api:8000`) | Rewrites của Next.js được compile lúc build; env runtime không đổi được đích proxy trong standalone image. Áp dụng cho cả demo và prod Compose |
+
+## Nâng cấp UI/UX — 2026-11-15
+
+| ID | Quyết định | Lý do / giới hạn |
+|---|---|---|
+| D37 | Chuẩn hóa UI sáng/indigo: sidebar 224px + drawer mobile (Escape), badge trạng thái có icon + nhãn Việt + mã enum, probability/threshold dạng phần trăm, thanh đóng góp log-odds có dấu, filter hồ sơ lưu URL | Giữ nguyên workflow/quyền/API/backend. Enum/payload/routes/DB không đổi; nhãn Việt chỉ ở frontend. Không thêm dark mode, dashboard nâng cao, polling nền hay tính năng mới |
+| D38 | E2E mới gộp trong 1 login Manager (drawer mobile + filter URL/back-nav); bước giữ draft khi đóng/mở chi tiết thêm vào workflow test hiện có | Suite dùng chung backend giới hạn 10 login/IP/5 phút (đã dùng 8); thêm login rời rạc sẽ gây 429. Không nới rate limit product cho test |
+| D39 | Bằng chứng hình ảnh UI lưu trong `docs/development/ui-refresh-2026-11-15/` (96 ảnh before/after, 3 vai trò, 3 viewport, kèm loading/empty/error) | Bản trước dựng từ worktree HEAD + backend riêng để đối chiếu trung thực; ảnh là file track bình thường trong docs, không dùng git-ignored `reports/` hay `presentation/` |
+
+## Gọn docs — 2026-11-16
+
+| ID | Quyết định | Lý do / giới hạn |
+|---|---|---|
+| D40 | Thay phần lưu ảnh before của D39: chỉ giữ 48 ảnh after trong `docs/development/ui-refresh-2026-11-15/after/`; xóa `docs/archive/{deployment,monitoring,reproducibility,limitations}.md`, `docs/audit-2026-11-15.md`, `docs/index.html` và `docs/.nojekyll` | Các archive (đã track) đã bị OPERATIONS/RESULTS thay thế và còn trong git history; bản ghi audit (chưa track) đã tóm tắt tại PROGRESS và D35–D36; trang evidence tĩnh trùng RESULTS/README. Ảnh before tái lập được từ HEAD `974b626` theo README của bộ ảnh. Giữ nguyên `archive/{experiments,leakage}.md` và toàn bộ bằng chứng ML chuẩn |
+| D41 | Viết lại README gốc thành bản portfolio và docs/README thành bản đồ một trang có tầng đọc 0/1/2/3; sửa các đoạn đặc tả đã cũ (walkthrough business API, chuẩn bị demo, handoff) | Một điểm vào duy nhất cho người mới và agent; không chép lại contract/evidence, không đổi số liệu, lock hay bằng chứng ML. AGENTS.md ghi rõ tầng context để tránh nạp archive/evidence toàn bộ theo mặc định |

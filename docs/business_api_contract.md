@@ -303,5 +303,6 @@ Không report đầy đủ hoặc chưa có model: 404/503 phù hợp, không s�
 6. Admin đổi role Analyst thành Manager → session cũ revoke; login mới vẫn không
    được chốt hồ sơ chính mình từng review. Model reload không đổi prediction history.
 
-Đây là walkthrough specification, **không phải E2E đã chạy**. B00 kiểm chứng legacy
-scoring + synthetic snapshot compatibility; B02–B04 phải kiểm thử routes/DB thực.
+Walkthrough này đã có kiểm chứng thực tế: business tests trên PostgreSQL thật
+và browser E2E `apps/web/tests/workflow.spec.ts`; kết quả và giới hạn ghi tại
+[PROGRESS](PROGRESS.md). Đặc tả này vẫn là nguồn chuẩn cho hành vi route/DTO.

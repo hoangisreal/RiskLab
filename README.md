@@ -11,6 +11,8 @@ through a human workflow: a Manager imports cases, a worker scores them, an
 Analyst reviews and proposes, and a Manager alone makes the final — simulated —
 decision. The model never decides.
 
+![Manager overview in the RiskLab web app](docs/development/ui-refresh-2026-11-15/after/manager-home-1440.jpg)
+
 > Production-oriented demo, not a production credit-decisioning system.
 > Every decision in the app is labelled simulated; `approve`/`review` model
 > output is illustrative only.

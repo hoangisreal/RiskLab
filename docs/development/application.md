@@ -1,10 +1,30 @@
 # Chạy RiskLab local
 
-Cần Python 3.12 qua `uv`, Node.js 24 và Docker daemon. Stack gồm PostgreSQL,
-business FastAPI, worker và Next.js. Contracts tại [Business API](../business_api_contract.md),
+Cách chính là Docker demo: chỉ cần Docker daemon, không cần Python/Node trên
+máy. Cách chạy trên host dành cho phát triển cần Python 3.12 qua `uv` và
+Node.js 24. Stack gồm PostgreSQL, business FastAPI, worker và Next.js.
+Contracts tại [Business API](../business_api_contract.md),
 [import](../demo_import_contract.md). Trạng thái/checks tại [PROGRESS](../PROGRESS.md).
 
-## Khởi động đủ stack synthetic
+## Khởi động bằng Docker (khuyến nghị)
+
+```bash
+docker compose -f deploy/compose.demo.yml up --build
+# hoặc chạy nền kèm smoke test tự động:
+make demo-up
+```
+
+Mở **http://localhost:3000**, đăng nhập `demo.manager` /
+`RiskLabDemo-Manager1` (Admin/Analyst: `demo.admin`, `demo.analyst`, mật khẩu
+theo cùng mẫu trong README). Service `demo-init` chạy một lần: migrate,
+provision login API/worker, build bundle synthetic và seed ba tài khoản demo.
+Chỉ port 3000/8000 được publish trên loopback; dữ liệu nằm ở named volumes.
+`make demo-smoke`, `make demo-logs`, `make demo-down`, `make demo-reset`
+(down kèm xóa volumes) là các lệnh vận hành tương ứng. Mật khẩu demo chỉ dùng
+cho stack này, ghi đè được qua `RISKLAB_DEMO_*_PASSWORD`; không dùng cho
+production ([deployment](../operations/deployment.md)).
+
+## Khởi động đủ stack synthetic trên host
 
 ```bash
 make setup

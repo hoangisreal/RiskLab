@@ -6,11 +6,11 @@ mô phỏng hỗ trợ quyết định, không phải phê duyệt tín dụng t
 
 ## Chuẩn bị
 
-1. Làm theo [application guide](application.md): `make app-db`,
-   `make app-migrate`, bootstrap Admin, rồi chạy API, worker và web với
-   catalog/model đã ghim của operator.
-2. Admin đăng nhập, tạo một Manager và một Analyst (mật khẩu chuyển qua kênh
-   riêng, không ghi vào tài liệu/video).
+1. Chạy Docker demo theo [application guide](application.md): `make demo-up`,
+   mở http://localhost:3000. Ba tài khoản `demo.*` đã được seed sẵn; mật khẩu
+   xem tại README gốc. (Đường host `make app-local` dành cho phát triển.)
+2. Nếu quay bằng tài khoản tự tạo: Admin đăng nhập, tạo một Manager và một
+   Analyst (mật khẩu chuyển qua kênh riêng, không ghi vào tài liệu/video).
 
 ## Kịch bản quay demo
 
