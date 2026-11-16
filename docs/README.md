@@ -1,32 +1,32 @@
-# RiskLab — tài liệu và bằng chứng
+# RiskLab — documentation and evidence
 
-RiskLab là portfolio ML Engineer về mô phỏng hỗ trợ quyết định tín dụng:
-Manager import → worker scoring → Analyst đề xuất → Manager quyết định mô phỏng.
-Model ước lượng payment difficulties trên Home Credit; kết quả chưa chứng minh
-hiệu quả tín dụng thực tế hoặc khả năng tổng quát theo thời gian.
+RiskLab is an ML Engineer portfolio project for simulated credit decision support:
+Manager import → worker scoring → Analyst proposal → Manager simulated decision.
+The model estimates payment difficulties on Home Credit data; the results do not
+establish real lending effectiveness or generalization over time.
 
-| Nội dung | Tài liệu |
+| Topic | Documentation |
 |---|---|
-| Chạy ứng dụng synthetic và giới hạn | [README dự án](../README.md) |
-| Metrics đã công bố, thí nghiệm E1–E5 | [RESULTS](RESULTS.md) |
-| Artifact, population, subgroup và lịch sử mở Test | [Model card](model_card.md) |
-| Quy trình ML/scoring và tái lập | [Operations](OPERATIONS.md) |
-| Leakage và bằng chứng lịch sử | [Leakage controls](archive/leakage.md) |
-| Tái lập và nghiên cứu portfolio mới | [Kiểm chứng portfolio](portfolio/verification.md) |
-| So sánh model mở rộng | [Model comparison](portfolio/model-comparison.md) |
-| Source identity sau cleanup GitHub | [Source revisions](portfolio/source-revisions.md) |
-| Dataset và đánh giá theo thời gian | [Temporal validation](portfolio/temporal-validation.md) |
+| Run the synthetic application and understand its limits | [Project README](../README.md) |
+| Published metrics and experiments E1–E5 | [RESULTS](RESULTS.md) |
+| Artifact, population, subgroups and Test-opening history | [Model card](model_card.md) |
+| ML/scoring operations and reproduction | [Operations](OPERATIONS.md) |
+| Leakage controls and historical evidence | [Leakage controls](archive/leakage.md) |
+| Fresh reproduction and portfolio research | [Portfolio verification](portfolio/verification.md) |
+| Extended model comparison | [Model comparison](portfolio/model-comparison.md) |
+| Source identity after GitHub cleanup | [Source revisions](portfolio/source-revisions.md) |
+| Dataset and chronological evaluation | [Temporal validation](portfolio/temporal-validation.md) |
 
-Metrics lịch sử gắn với run/lock của chính chúng; không gán cho model mới.
-E6 là nghiên cứu mô tả trên Train/Selection, không thay champion, threshold,
-không đăng ký/promotion và không mở Test thật.
+Historical metrics belong to their own run/lock identities and must not be
+attributed to new models. E6 is descriptive research on Train/Selection; it does
+not change the champion or threshold, register/promote a model, or open real Test.
 
-Tài liệu công khai chỉ chứa hướng dẫn cho người đọc và bằng chứng tổng hợp.
-Dữ liệu gốc, dự đoán từng hàng, tracking store, secrets và cấu hình/hướng dẫn
-coding assistant được giữ ngoài Git. Kiểm tra bộ file bằng
-`uv run python scripts/check_public_files.py`; dùng `--revision COMMIT` để
-kiểm tra một commit. Kiểm tra tree khác kiểm tra toàn bộ lịch sử Git.
+Public documentation contains reader guides and aggregate evidence only.
+Raw data, per-row predictions, tracking stores, secrets and coding-assistant
+settings/instructions remain outside Git. Check the public file set with
+`uv run python scripts/check_public_files.py`; use `--revision COMMIT` to audit
+one commit. Auditing a tree is different from auditing the entire Git history.
 
-Bản ghi quyết định và hướng dẫn sản phẩm lịch sử còn trong
-[snapshot tài liệu](https://github.com/hoangisreal/RiskLab/tree/b9f85066c30b62d739ee8ff29aa631f8142b3642/docs).
-Snapshot là lịch sử, không đại diện trạng thái nghiệm thu mới.
+Historical decision records and product guides remain in the
+[documentation snapshot](https://github.com/hoangisreal/RiskLab/tree/b9f85066c30b62d739ee8ff29aa631f8142b3642/docs).
+That snapshot records history rather than current acceptance status.

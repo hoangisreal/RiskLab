@@ -1,8 +1,9 @@
 # RiskLab web
 
-Next.js frontend của ứng dụng mô phỏng hỗ trợ quyết định. Hướng dẫn chuẩn tại
-[README dự án](../../README.md). Analyst đề xuất, Manager chốt quyết định
-mô phỏng và Admin quản lý tài khoản. UI không truy cập PostgreSQL hoặc tự cấp quyền.
+Next.js frontend for the simulated decision-support application. See the
+[project README](../../README.md) for the main guide. Analysts propose,
+Managers finalize simulated decisions, and Admins manage accounts. The UI does
+not access PostgreSQL directly or grant its own permissions.
 
 ```bash
 npm ci --ignore-scripts
@@ -14,7 +15,8 @@ npm run build
 npm run test:e2e
 ```
 
-`RISKLAB_API_ORIGIN` là operator config (mặc định http://127.0.0.1:8000), không
-phải browser input hoặc biến chứa credentials. Mở http://localhost:3000 để Origin
-khớp cấu hình backend. E2E cần Docker, chạy backend/DB synthetic riêng; không dùng
-production credentials. Secrets/tokens không lưu localStorage hoặc `NEXT_PUBLIC_*`.
+`RISKLAB_API_ORIGIN` is operator configuration (default http://127.0.0.1:8000),
+not browser input or a credential variable. Open http://localhost:3000 so the
+Origin matches the backend configuration. E2E requires Docker and runs a
+separate synthetic backend/database without production credentials. Never
+store secrets/tokens in localStorage or `NEXT_PUBLIC_*` variables.

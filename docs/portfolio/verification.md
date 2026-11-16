@@ -1,33 +1,35 @@
-# Kiểm chứng portfolio — 2026-11-16
+# Portfolio verification — 2026-11-16
 
-Mục tiêu: tái lập baseline, nghiên cứu cải tiến có giới hạn và giữ bằng chứng
-đủ để người đọc đánh giá năng lực ML Engineer. Không tự đổi model đang phục vụ.
+Objective: reproduce the baseline, investigate bounded improvements and retain
+enough evidence to assess ML engineering work. Do not automatically replace
+the serving model.
 
-## Máy và CUDA
+## Machine and CUDA
 
-Máy kiểm tra: Fedora 45, i5-12500H (16 logical CPUs), RAM khoảng 15 GiB,
-RTX 3050 Laptop 4.096 MiB, compute capability 8.6, driver 620.70.06.
-Driver đã hoạt động; không cần cài lại hoặc thay cấu hình hệ thống.
-Sandbox không thấy device nodes có thể làm `nvidia-smi` thất bại;
-kết quả ở đây được xác nhận ngoài sandbox.
+Verified machine: Fedora 45, i5-12500H (16 logical CPUs), approximately 15 GiB
+RAM, RTX 3050 Laptop with 4,096 MiB, compute capability 8.6, driver 620.70.06.
+The driver was already functional; no reinstall or system reconfiguration was
+needed. Missing sandbox device nodes can make `nvidia-smi` fail; these results
+were confirmed outside the sandbox.
 
-Đã chạy `uv run python scripts/gpu_preflight.py --out reports/operations/gpu-preflight-20261116.json`:
-XGBoost và CatBoost đều fit dữ liệu synthetic trên GPU, không cảnh báo
-fallback. XGBoost kiểm tra thêm effective device trong booster config.
-Thời gian fit khoảng 0,423 và 0,277 giây; đây là smoke test nhỏ, không phải
-benchmark hay đánh giá Home Credit. Wheel từ môi trường `uv.lock` hiện có
-đã chạy được, không cần cài thêm CUDA toolkit.
+Executed `uv run python scripts/gpu_preflight.py --out reports/operations/gpu-preflight-20261116.json`:
+XGBoost and CatBoost both fitted synthetic data on GPU without fallback warnings.
+XGBoost's effective device was also checked in its booster configuration. Fit
+times were approximately 0.423 and 0.277 seconds; this is a small smoke test,
+not a benchmark or Home Credit evaluation. Wheels from the existing `uv.lock`
+environment worked without installing an additional CUDA toolkit.
 
-E6 dùng một trial mỗi lần, depth tối đa 6, bốn CPU threads. Theo
-[XGBoost](https://xgboost.readthedocs.io/en/stable/gpu/index.html), bộ nhớ phụ thuộc
-dữ liệu và histogram. [CatBoost](https://catboost.ai/docs/en/features/training-on-gpu)
-công khai GPU training không deterministic; không yêu cầu artifact GPU giống byte CPU.
-Baseline LightGBM tiếp tục chạy CPU để đối chiếu evidence lịch sử.
+E6 runs one trial at a time, with maximum depth 6 and four CPU threads.
+[XGBoost](https://xgboost.readthedocs.io/en/stable/gpu/index.html) documents memory
+use as dependent on data and histograms.
+[CatBoost](https://catboost.ai/docs/en/features/training-on-gpu) documents
+non-deterministic GPU training; GPU artifacts are not required to match CPU
+bytes. Baseline LightGBM remains on CPU for comparison with historical evidence.
 
-## Tái lập
+## Reproduction
 
-Chạy từ root với `uv sync --locked`, Python 3.12; raw Home Credit đã có quyền
-sử dụng đặt tại `data/raw`, không commit. Chọn output chưa tồn tại:
+Run from the root with `uv sync --locked` and Python 3.12. Place licensed raw
+Home Credit data in `data/raw`, outside Git. Choose an output that does not exist:
 
 ```bash
 uv run python scripts/portfolio_run.py --out reports/workspaces/fresh-baseline
@@ -35,158 +37,167 @@ uv run python scripts/portfolio_run.py --out reports/workspaces/fresh-e6 \
   --baseline reports/workspaces/fresh-baseline/baseline
 ```
 
-Runner giới hạn 12 giờ mỗi đợt, tạo MLflow HTTP riêng trên loopback,
-database/artifacts và log riêng,
-rồi dừng server khi xong hoặc lỗi. Không dùng tracking store lịch sử và không
-đụng Docker demo. Baseline chạy ingest, partition, validation, features,
-E1/E2/E1-served, policy, diagnostics, E3/E4, candidate và reference verify.
-Giữ nguyên seed/shares, SQL, preprocessing, features và metric tolerances.
-Không tạo lock, đăng ký hoặc thay alias; source dirty được ghi đúng provenance.
+The runner limits each execution to 12 hours, starts an isolated loopback MLflow
+HTTP server with its own database/artifacts/logs, and stops it on completion or
+failure. It does not use the historical tracking store or alter the Docker demo.
+Baseline execution covers ingest, partitioning, validation, features,
+E1/E2/E1-served, policy, diagnostics, E3/E4, candidate and reference verification.
+Seeds/shares, SQL, preprocessing, features and metric tolerances are unchanged.
+No locks are created, models registered or aliases changed; dirty source state
+is recorded accurately in provenance.
 
-E6 khai báo trước tại `experiments/e6.yaml`: bốn cấu hình XGBoost × ba fold
-trong Train; preprocessing học riêng mỗi fold, early stopping dùng validation
-của fold. Chọn cấu hình/rounds bằng Train-CV rồi mới score Selection.
-XGBoost dùng native categorical với category sets học trong Train, khác
-one-hot preprocessing của E5; chênh lệch không được quy riêng cho tuning.
-So sánh LightGBM 283 rounds trên đúng served set; bỏ từng nguồn lịch sử trên
-tập đó, bỏ từng `EXT_SOURCE_*` và cả nhóm. Fault simulation đặt external
-scores thành missing không thay đổi validation required-source của API.
+E6 was declared in `experiments/e6.yaml`: four XGBoost configurations × three
+Train folds, with preprocessing learned separately and early stopping on each
+fold's validation data. Configuration/rounds are selected by Train-CV before
+Selection scoring. XGBoost uses native categorical processing with category sets
+learned on Train, unlike E5's one-hot preprocessing; differences cannot be
+attributed solely to tuning. Comparisons use LightGBM with 283 rounds on the
+same served set, removing each historical source, each `EXT_SOURCE_*` and the
+whole group. Fault simulation sets external scores to missing without changing
+the API's required-source validation.
 
-Primary ROC-AUC; flag nghiên cứu khi gain ≥ 0,005 và cận dưới paired 95% CI
-> 0 (1.000 bootstrap). Flag không cấp quyền promotion. Selection đã tái sử
-dụng; intervals mang tính khám phá, chưa điều chỉnh đa so sánh. Threshold
-scenarios mô tả recall/khối lượng review; policy phục vụ giữ nguyên.
-Mở Test thật cần quyết định riêng cho lock cụ thể.
+ROC-AUC is primary; a research flag requires gain ≥ 0.005 and a positive lower
+paired 95% confidence bound (1,000 bootstrap resamples). The flag does not
+authorize promotion. Selection has been reused; intervals are exploratory and
+uncorrected for multiple comparisons. Threshold scenarios describe recall/review
+workload; the serving policy is unchanged. A real Test opening requires separate
+authorization for the specific lock.
 
-## Trạng thái thực chạy
+## Completed execution
 
-Baseline tại `reports/workspaces/portfolio-20261116` đã hoàn tất: 9/9 aggregate
-reference checks pass, candidate parity 500 hồ sơ pass, không mở Test.
-So sánh bảy bảng features Train (169.131 hồ sơ) với baseline local: values,
-keys và missing masks khớp chính xác, rtol=atol=0. Report aggregate tại
+Baseline at `reports/workspaces/portfolio-20261116` completed: 9/9 aggregate
+reference checks passed, candidate parity passed on 500 cases, and Test remained
+unopened. Seven Train feature tables (169,131 cases) matched the local baseline
+exactly in values, keys and missing masks, rtol=atol=0. Aggregate report:
 `reports/workspaces/portfolio-20261116/feature-comparison.json`.
 E3 run `0f127989b0d3416ea4072e10a986f980`, E4 `ea551cfe090546e78c93733a7ef58e8c`;
-artifact E3 có SHA256 giống chính xác artifact được công bố trong
-[model card](../model_card.md). LightGBM Selection ROC-AUC 0,772521,
-PR-AUC 0,263679, Brier 0,066776, log loss 0,241557; threshold 0,08040201.
-Chưa tạo lock mới hoặc thay model phục vụ.
+the E3 artifact SHA256 exactly matches the published [model card](../model_card.md).
+LightGBM Selection ROC-AUC 0.772521, PR-AUC 0.263679, Brier 0.066776, log loss
+0.241557; threshold 0.08040201. No new lock or serving-model replacement.
 
-## Kết quả E6 (Selection; không phải Test mới)
+## E6 results (Selection, not a new Test evaluation)
 
-Run `c6fb772e904046599de3263ebfee27e7`, 169.131 Train / 30.751 Selection.
+Run `c6fb772e904046599de3263ebfee27e7`, 169,131 Train / 30,751 Selection rows.
 Config SHA256 `98bb53e8db5b00dd4e2bdaff8a5959ac98ba6aaff5346c4ff6aece73f5dea948`;
 source SHA256 `8fa0deedbbbe666324547ae21426c53cbb1387c0b8a87f1b8d580a04b615f26a`.
-Report local: `reports/workspaces/portfolio-e6-20261116/study/summary.json`.
+Local report: `reports/workspaces/portfolio-e6-20261116/study/summary.json`.
 
 | Model | ROC-AUC | PR-AUC | Brier | Log loss |
 |---|---:|---:|---:|---:|
-| LightGBM reference | 0,772521 | 0,263679 | 0,066776 | 0,241557 |
-| XGBoost CUDA, chọn bằng Train-CV | 0,774047 | 0,266446 | 0,066641 | 0,241023 |
+| LightGBM reference | 0.772521 | 0.263679 | 0.066776 | 0.241557 |
+| XGBoost CUDA, selected by Train-CV | 0.774047 | 0.266446 | 0.066641 | 0.241023 |
 
-Train-CV chọn depth 4, min_child_weight 30, 621 rounds, learning rate 0,03.
-AUC gain +0,001527; paired 95% CI [-0,000693; +0,003593]. Không đạt rule
-+0,005 và cận dưới > 0, nên không flag superior, giữ LightGBM champion.
-Không mở rộng search sau khi xem Selection. Khối fit/evaluation 167,3 giây,
-chưa tính nạp dữ liệu hoặc khởi động tracking; không phải CPU/GPU speed benchmark.
+Train-CV selected depth 4, min_child_weight 30, 621 rounds and learning rate 0.03.
+AUC gain +0.001527; paired 95% CI [-0.000693; +0.003593]. This fails the rule
+of +0.005 with a positive lower bound, so no superiority flag was assigned and
+LightGBM remains champion. Search was not expanded after examining Selection.
+Fit/evaluation took 167.3 seconds, excluding data loading/tracking startup;
+this is not a CPU/GPU speed benchmark.
 
-Artifact nghiên cứu SHA256
+Research artifact SHA256
 `cc982140538f4c88a7671e539c04ae433390cfb5437b26438802d8cc7f2e0d32`.
-Training device được kiểm tra là `cuda:0`; artifact dùng CPU để prediction.
-Serialize/reload pipeline giữ nguyên probabilities, maximum difference 0.
-Một tiến trình Python riêng tải lại artifact và tái tính bốn metrics bằng
-sklearn trực tiếp trên Selection: sai khác metrics tối đa 0; source/artifact
-hash khớp report. Aggregate check lưu ở `study/independent-verification.json`.
-Challenger chưa tích hợp với explanation/registry contract của ứng dụng;
-không được coi là model có thể tự thay thế champion.
+Training device was verified as `cuda:0`; prediction uses CPU. Pipeline
+serialization/reload preserved probabilities exactly, maximum difference 0.
+A separate Python process reloaded the artifact and directly recomputed four
+sklearn metrics on Selection: maximum metric difference 0, with matching
+source/artifact hashes. Aggregate check: `study/independent-verification.json`.
+The challenger is not integrated with the application's explanation/registry
+contract and cannot automatically replace the champion.
 
-| Ablation: train lại LightGBM với phần còn lại | ROC-AUC | Δ AUC so với reference |
+| Ablation: refit LightGBM on remaining inputs | ROC-AUC | Δ AUC vs reference |
 |---|---:|---:|
-| Bỏ cả nhóm EXT_SOURCE | 0,745761 | -0,026759 |
-| Bỏ EXT_SOURCE_1 | 0,769770 | -0,002751 |
-| Bỏ EXT_SOURCE_2 | 0,759478 | -0,013042 |
-| Bỏ EXT_SOURCE_3 | 0,764151 | -0,008369 |
-| Bỏ bureau trên served set | 0,769158 | -0,003363 |
-| Bỏ previous trên served set | 0,767110 | -0,005411 |
-| Bỏ installments trên served set | 0,765407 | -0,007114 |
+| Remove all EXT_SOURCE inputs | 0.745761 | -0.026759 |
+| Remove EXT_SOURCE_1 | 0.769770 | -0.002751 |
+| Remove EXT_SOURCE_2 | 0.759478 | -0.013042 |
+| Remove EXT_SOURCE_3 | 0.764151 | -0.008369 |
+| Remove bureau from served set | 0.769158 | -0.003363 |
+| Remove previous from served set | 0.767110 | -0.005411 |
+| Remove installments from served set | 0.765407 | -0.007114 |
 
-Đây là đóng góp có điều kiện trên bộ nguồn đang phục vụ, khác cumulative E2.
-Không cộng các gain và không diễn giải nhân quả. Bỏ từng nguồn lịch sử đều
-làm giảm AUC trong phép đo này. Interval của EXT_SOURCE_1 chứa 0; so sánh
-mang tính khám phá, không điều chỉnh đa kiểm định.
+These are conditional contributions on the serving sources, unlike cumulative
+E2. Do not add gains or interpret them causally. Removing each historical source
+reduced AUC in this measurement. The EXT_SOURCE_1 interval includes 0;
+comparisons are exploratory, without multiple-testing correction.
 
-Giữ nguyên champion nhưng giả lập cả ba EXT_SOURCE missing khi inference:
-AUC 0,728064, PR-AUC 0,205051, Brier 0,069755, log loss 0,256085. Khác với
-train lại không có external scores; chưa phải fallback model được nghiệm thu.
-Kết quả củng cố ưu tiên kiểm soát availability/quality của upstream scores.
-Không tự điền rỗng nguồn bắt buộc để vượt API validation.
+Keeping the champion but simulating all three EXT_SOURCE inputs missing at
+inference yielded AUC 0.728064, PR-AUC 0.205051, Brier 0.069755 and log loss
+0.256085. This differs from refitting without external scores and is not an
+accepted fallback model. The result supports prioritizing upstream-score
+availability/quality. Never fill required sources with empty data to bypass
+API validation.
 
-Tại threshold đã đóng băng, Selection review fraction 30,78%, recall 68,21%.
-Scenario threshold 0,05 đưa review fraction lên 48,69%, recall 83,32%; chỉ là
-mô tả trade-off, không chọn policy mới hoặc threshold theo nhóm.
+At the frozen threshold, Selection review fraction is 30.78% and recall 68.21%.
+A scenario threshold of 0.05 gives review fraction 48.69% and recall 83.32%:
+a descriptive trade-off, not a new policy or group-specific threshold.
 
-Kết quả mới tách khỏi [RESULTS lịch sử](../RESULTS.md).
+New results remain separate from [historical RESULTS](../RESULTS.md).
 
-## Benchmark bổ sung và evidence hiện hành
+## Additional benchmarks and current evidence
 
-- [E7](model-comparison.md): 12 model, run `05a1da3d6f3c4900ab0ebe12a119cdcf`.
-  XGBoost AUC 0,774287; gain +0,001766 chưa đạt superiority rule. Champion giữ
-  nguyên. Reload độc lập cả 12 artifacts, metric difference tối đa 0.
-- [E8](temporal-validation.md): ba model trên dữ liệu training chính thức,
-  run `5ce5550e61724c478e3e3fb0a003ad3d`. 300.000 Train, 33.400 Selection,
-  11 predictors; LR AUC 0,615878. Reload độc lập ba artifacts, metric difference
-  tối đa 0. Không mở nhãn Calibration/Test/Monitoring hoặc competition Test.
-- Dummy đã bỏ khỏi code và report hiện hành theo yêu cầu owner; old runs giữ
-  nguyên local. Không đổi seed, budgets hoặc hyperparameters theo kết quả.
-- [Evidence JSON](benchmark-evidence.json) chứa metrics, paired/block intervals,
-  config/source/artifact hashes và trạng thái reload. Không chứa dữ liệu cá nhân
-  hoặc predictions từng hàng. Đây là bản tổng hợp; raw artifacts vẫn private.
+- [E7](model-comparison.md): 12 models, run `05a1da3d6f3c4900ab0ebe12a119cdcf`.
+  XGBoost AUC 0.774287; gain +0.001766 fails the superiority rule. The champion
+  is unchanged. Independent reload of all 12 artifacts: maximum metric difference 0.
+- [E8](temporal-validation.md): three models on official training data, run
+  `5ce5550e61724c478e3e3fb0a003ad3d`. 300,000 Train, 33,400 Selection rows,
+  11 predictors; LR AUC 0.615878. Independent reload of three artifacts:
+  maximum metric difference 0. Calibration/Test/Monitoring labels and competition
+  Test remain unopened.
+- Dummy was removed from current code/reports at the owner's request; previous
+  runs remain intact locally. Seeds, budgets and hyperparameters were not changed
+  in response to results.
+- [Evidence JSON](benchmark-evidence.json) contains metrics, paired/block
+  intervals, config/source/artifact hashes and reload status, without personal
+  data or per-row predictions. It is an aggregate report; raw artifacts remain private.
 
-## Gate local hiện hành
+## Current local gate
 
-| Command/check | Kết quả ngày 2026-11-16 |
+| Command/check | Result on 2026-11-16 |
 |---|---|
-| `make test` | 742 passed, 10 deselected; 242,54 giây; PostgreSQL disposable thật |
-| Ruff / format / mypy trong `make test` | Pass; 219 files formatted, 91 source files typed |
+| `make test` | 742 passed, 10 deselected; 242.54 seconds; real disposable PostgreSQL |
+| Ruff / format / mypy within `make test` | Pass; 219 files formatted, 91 source files typed |
 | `uv run python scripts/check_public_files.py --links` | Pass; 360 candidate paths |
 | `git diff --check` | Pass |
-| Frozen protocol và ba evidence files lịch sử | Hash/bytes không đổi |
-| GitHub Markdown + Mermaid parse/render | Pass; ảnh và sơ đồ được xem trực tiếp |
+| Frozen protocol and three historical evidence files | Unchanged hashes/bytes |
+| GitHub Markdown + Mermaid parsing/rendering | Pass; images and diagram visually inspected |
 
-Browser CI đầu tiên của snapshot `82eb52f` phát hiện race trong test: reload
-và đếm rows ngay lúc table đang tải. Local reproduction xác nhận worker đã
-lưu đủ ba hồ sơ (hai SUCCEEDED), trong khi probe DOM lặp lại loading state.
-Test sửa sang poll API đọc trạng thái worker rồi dùng auto-wait assert đủ ba
-links trong UI; không mock scoring, tăng timeout hoặc thêm retries. Sau sửa,
-`npm run test:e2e:workflow`: **4 passed (39,2 giây)** trên desktop/mobile;
-`npm run lint`, `npm run typecheck`, `npm run format:check` đều pass.
+The initial browser CI at snapshot `82eb52f` exposed a test race: reloading and
+counting rows while the table was still loading. Local reproduction confirmed
+that the worker had persisted three cases (two SUCCEEDED), while repeated DOM
+probes observed loading state. The test now polls worker status through the API,
+then uses auto-wait assertions for three UI links, without mocking scoring,
+increasing timeouts or adding retries. After the fix,
+`npm run test:e2e:workflow`: **4 passed (39.2 seconds)** on desktop/mobile;
+`npm run lint`, `npm run typecheck` and `npm run format:check` all passed.
 
-Có một Starlette TestClient deprecation warning; không đổi dependencies để
-che warning. Các pytest checks chỉ dùng synthetic data. Frontend production
-build đã được dựng lại bằng Docker để chụp ảnh; gate frontend/E2E đầy đủ nằm
-trong CI, trạng thái run xem bên dưới.
+There is one Starlette TestClient deprecation warning; dependencies were not
+changed to hide it. Pytest checks use synthetic data only. The frontend
+production build was rebuilt with Docker for screenshots; full frontend/E2E
+gates run in CI, whose run status is linked below.
 
-## Ứng dụng và giới hạn nghiệm thu
+## Application and acceptance limits
 
-README có ba ảnh thật từ production build local, API/PostgreSQL/worker thật,
-nhưng dùng cases và model synthetic. [Provenance ảnh](../assets/README.md).
-Mermaid được parse/render kiểm tra; Markdown render theo GitHub API.
-`make demo-up` là đường chạy thử, không phải deployment production.
+The README includes three real screenshots of a local production build with
+real API/PostgreSQL/worker, using synthetic cases/model.
+[Image provenance](../assets/README.md). Mermaid parsing/rendering was checked;
+Markdown was rendered through GitHub's API. `make demo-up` is a trial workflow,
+not production deployment.
 
-CI kiểm tra Python, PostgreSQL thật, frontend build, Docker scoring smoke và
-Playwright desktop/mobile. Trạng thái từng run xem tại
+CI covers Python, real PostgreSQL, frontend build, Docker scoring smoke and
+Playwright desktop/mobile. Individual run status:
 [GitHub Actions](https://github.com/hoangisreal/RiskLab/actions/workflows/ci.yml).
-VPS/TLS, image-registry release và off-VPS recovery chưa được nghiệm thu.
-Không suy production readiness từ việc CI pass.
+VPS/TLS, an image-registry release and off-VPS recovery are not accepted.
+Passing CI does not establish production readiness.
 
-## Phạm vi công khai và source identity
+## Public scope and source identity
 
-Public candidate files, relative Markdown links và whitespace được kiểm tra
-bằng `scripts/check_public_files.py --links` và `git diff --check`. CI chạy cùng
-policy. Local pre-push guard kiểm tra từng outgoing commit, kể cả private file
-được thêm rồi xóa trước tip; với ref mới kiểm tra toàn ancestry. Hook local
-không đi theo clone; CLI và CI có trong repository.
+Public candidate files, relative Markdown links and whitespace are checked with
+`scripts/check_public_files.py --links` and `git diff --check`. CI runs the same
+policy. The local pre-push guard checks every outgoing commit, including private
+files added and deleted before the tip; new refs trigger a full ancestry check.
+Local hooks do not accompany clones; the CLI and CI are included in the repository.
 
-Cleanup/history mapping và giới hạn audit tại [source revisions](source-revisions.md).
-Local guides, Git history gốc và backup bundles giữ nguyên. Frozen protocol,
-locks, references, metric tolerances và bytes của RESULTS/model card/leakage
-không đổi. Không tạo lock/promotion hoặc mở Test thật cho đợt này.
+Cleanup/history mapping and audit limitations: [source revisions](source-revisions.md).
+Local guides, original Git history and backup bundles are retained. Frozen
+protocol, locks, references, metric tolerances and the original bytes of
+RESULTS/model card/leakage remain unchanged. No lock/promotion or real Test
+opening was performed for this work.

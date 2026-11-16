@@ -1,36 +1,37 @@
-# So sánh model mở rộng — E7
+# Extended model comparison — E7
 
-Mục tiêu là so sánh các pipeline thường dùng cho phân loại rủi ro trên dữ liệu
-bảng. E7 mở rộng breadth của E5/E6, không phải một vòng chọn model/Test mới.
-Các cấu hình được khai báo trước tại `experiments/e7.yaml`; năm baseline lấy
-nguyên từ `experiments/e5.yaml`, model mới có budget cố định.
+This study compares common tabular risk-classification pipelines. E7 broadens
+E5/E6 rather than starting a new model-selection/Test cycle. Configurations were
+declared in `experiments/e7.yaml`; five baselines are reused unchanged from
+`experiments/e5.yaml`, and additional models have fixed budgets.
 
-| Họ model | Vai trò | Execution |
+| Model family | Role | Execution |
 |---|---|---|
-| Logistic Regression | Baseline tuyến tính | CPU |
-| Decision Tree | Cây đơn, diễn giải cấu trúc | CPU |
-| Random Forest | Bagging cây | CPU, 4 fit threads |
+| Logistic Regression | Linear baseline | CPU |
+| Decision Tree | Single tree with an inspectable structure | CPU |
+| Random Forest | Tree bagging | CPU, 4 fit threads |
 | Extra Trees | Randomized tree ensemble | CPU, 4 fit threads |
-| AdaBoost | Boosting cây nông | CPU |
-| Gaussian Naive Bayes | Baseline generative, giả định độc lập có điều kiện | CPU |
-| MLP | Neural tabular baseline nhỏ | CPU, early stopping trong Train |
-| Linear SVM + sigmoid | Margin classifier với probability calibration riêng | CPU |
+| AdaBoost | Shallow-tree boosting | CPU |
+| Gaussian Naive Bayes | Generative baseline assuming conditional independence | CPU |
+| MLP | Small tabular neural baseline | CPU, early stopping within Train |
+| Linear SVM + sigmoid | Margin classifier with separate probability calibration | CPU |
 | HistGradientBoosting | Histogram gradient boosting | CPU |
-| LightGBM | Champion protocol đang phục vụ | CPU |
-| XGBoost | Challenger cây boosting | CUDA |
-| CatBoost | Challenger cây boosting | CUDA |
+| LightGBM | Current serving champion's protocol | CPU |
+| XGBoost | Boosted-tree challenger | CUDA |
+| CatBoost | Boosted-tree challenger | CUDA |
 
-Tất cả dùng cùng served set 147 inputs và cùng Train/Selection. LightGBM
-giữ native categorical pipeline; các family khác dùng preprocessing LR hiện
-có (Train-only imputation/scaling/one-hot). Vì preprocessing và search budget
-khác nhau, đây là so sánh pipeline ứng dụng, không chứng minh family tối ưu.
-Không có class weighting/resampling hoặc tuning sau khi xem Selection.
+All models use the same 147 served inputs and Train/Selection partitions.
+LightGBM retains its native categorical pipeline; other families use the existing
+LR preprocessing (Train-only imputation/scaling/one-hot encoding). Preprocessing
+and search budgets differ, so this compares application pipelines rather than
+establishing an optimal model family. No class weighting/resampling or tuning
+was introduced after examining Selection.
 
-SVM fit estimator trên Train rồi đóng băng, fit sigmoid trên Calibration;
-không fit calibrator lên Selection. Model khác giữ probability gốc. Nội bộ
-MLP/HistGB có early stopping trong Train; không dùng Selection để dừng.
-RF/ExtraTrees prediction dùng một thread để giữ thứ tự floating reductions;
-không nới tolerance để làm exact reload pass. Training vẫn dùng bốn threads.
+The SVM estimator is fitted on Train and then frozen; its sigmoid calibrator is
+fitted on Calibration, never Selection. Other models retain raw probabilities.
+MLP/HistGB early stopping happens within Train, without Selection. RF/ExtraTrees
+prediction uses one thread to preserve floating-point reduction order; tolerances
+were not relaxed to pass exact reload checks. Training still uses four threads.
 
 ```bash
 uv run python scripts/portfolio_run.py --study e7 \
@@ -38,22 +39,26 @@ uv run python scripts/portfolio_run.py --study e7 \
   --baseline reports/workspaces/fresh-baseline/baseline
 ```
 
-Primary ROC-AUC, PR-AUC, Brier, log loss; ghi thêm ECE, thời gian fit/batch
-score, convergence warnings và artifact hash. So sánh AUC paired bootstrap
-1.000 lần; flag mô tả khi gain ≥ 0,005 và CI lower > 0. Selection đã tái sử
-dụng, không điều chỉnh multiplicity; không promotion theo bảng xếp hạng này.
-Timing là phép đo local cho batch, không phải HTTP latency hoặc production SLO.
+Primary metrics are ROC-AUC, PR-AUC, Brier and log loss; the report also records
+ECE, fit/batch-scoring time, convergence warnings and artifact hashes. Paired AUC
+bootstrap uses 1,000 resamples; a descriptive flag requires gain ≥ 0.005 and a
+positive lower confidence bound. Selection has been reused, without multiplicity
+correction; this ranking does not authorize promotion. Local batch timings are
+not HTTP latency measurements or production SLOs.
 
-## Kết quả
+## Results
 
-Run đầu `baaf8585b3134e36b924610551159b6f` được dừng để
-sửa tính tái lập execution: synthetic RF parallel prediction lệch 2,22e-16
-do thứ tự cộng floating point; giữ output cũ và restart bằng config mới,
-không thay hyperparameters để chọn theo Selection.
+Initial run `baaf8585b3134e36b924610551159b6f` was stopped to fix execution
+reproducibility: synthetic parallel RF prediction differed by 2.22e-16 because
+of floating-point summation order. Previous output was retained and execution
+restarted with a new configuration, without changing hyperparameters to select
+against Selection.
 
-Run hiện hành gồm 12 model (đã bỏ Dummy theo yêu cầu owner); old runs giữ local.
-Run hoàn chỉnh `05a1da3d6f3c4900ab0ebe12a119cdcf`, 169.131 Train / 30.752 Calibration / 30.751 Selection.
-Config SHA256 `b764f2d96ca050450c7f3dde444ba6a90fcba5d638fb104653c8b4ed901a3e87`; source SHA256 `00837cf0688d6a43c02112d6bb2700bf339e256c19517bde32ad13d2ef02ae4e`.
+The current study has 12 models after the owner requested removal of Dummy;
+older runs remain local. Completed run `05a1da3d6f3c4900ab0ebe12a119cdcf` uses
+169,131 Train / 30,752 Calibration / 30,751 Selection rows.
+Config SHA256 `b764f2d96ca050450c7f3dde444ba6a90fcba5d638fb104653c8b4ed901a3e87`;
+source SHA256 `00837cf0688d6a43c02112d6bb2700bf339e256c19517bde32ad13d2ef02ae4e`.
 
 | Model | ROC-AUC | PR-AUC | Brier | Log loss | Fit (s) |
 |---|---:|---:|---:|---:|---:|
@@ -70,22 +75,22 @@ Config SHA256 `b764f2d96ca050450c7f3dde444ba6a90fcba5d638fb104653c8b4ed901a3e87`
 | decision_tree | 0.713672 | 0.194541 | 0.070266 | 0.258565 | 15.8 |
 | gaussian_nb | 0.513622 | 0.082817 | 0.887754 | 30.318458 | 6.1 |
 
-XGBoost đứng đầu bảng này nhưng AUC gain chỉ +0,001766, paired 95% CI
-[-0,000834; +0,004528]; không đạt rule. Không model nào được flag superior,
-không thay champion hoặc mở rộng tuning sau khi xem Selection.
+XGBoost leads this table, but its AUC gain is only +0.001766, with paired 95% CI
+[-0.000834; +0.004528], below the rule. No model was flagged superior; the
+champion was retained and tuning was not expanded after examining Selection.
 
-GaussianNB mất calibration nghiêm trọng trong pipeline này (Brier 0,887754,
-log loss 30,318458); kết quả xấu được giữ nguyên, không dùng cho quyết định.
-Đây không chứng minh family này luôn kém ở dataset khác. AdaBoost có AUC
-0,722 nhưng probability metrics yếu; AUC không đủ để nghiệm thu PD.
-Các model mới chưa được tuning ngang mức champion; không diễn giải bảng như
-một kết luận tổng quát về thuật toán.
+GaussianNB is severely miscalibrated in this pipeline (Brier 0.887754, log loss
+30.318458). These poor results are retained and are not used for decisions;
+they do not establish that the family performs poorly on other datasets.
+AdaBoost has AUC 0.722 but weak probability metrics: AUC alone cannot establish
+PD acceptance. Additional models were not tuned to the same extent as the
+champion, so this is not a general conclusion about algorithms.
 
-Independent verification trong tiến trình Python riêng đã tải lại cả 12
-artifacts theo SHA256, predict Selection và tính trực tiếp bằng sklearn:
-sai khác metrics tối đa 0. Model nào cũng pass exact reload probe. Không có
-ConvergenceWarning trong run hoàn chỉnh. Output/model/predictions từng hàng
-chỉ nằm local tại `reports/workspaces/portfolio-e7-no-prior-20261116/study/`, không
-được commit hoặc public.
+Independent verification in a separate Python process reloaded all 12 artifacts
+by SHA256, predicted Selection and recomputed metrics directly with sklearn:
+maximum metric difference 0. Every model passed the exact reload probe, with
+no ConvergenceWarning in the completed run. Outputs/models/per-row predictions
+remain local at `reports/workspaces/portfolio-e7-no-prior-20261116/study/` and
+are not committed or published.
 
-Bằng chứng tổng hợp có thể đọc bằng máy: [benchmark evidence](benchmark-evidence.json).
+Machine-readable aggregate evidence: [benchmark evidence](benchmark-evidence.json).

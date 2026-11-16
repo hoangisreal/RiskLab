@@ -1,14 +1,16 @@
-# Ảnh giao diện cho README
+# README application screenshots
 
-Ba ảnh chụp thật bằng Playwright trên Docker demo local tại
-`http://localhost:3000`, ngày 2026-11-16. Frontend production build từ source
-hiện hành; API, PostgreSQL và worker thực, không mock responses.
+These three real screenshots were captured with Playwright against the local
+Docker demo at `http://localhost:3000` on 2026-11-16. The frontend is a production
+build of the current source, using the real API, PostgreSQL and worker without
+mocked responses.
 
-- `overview.jpg`: dashboard của Manager.
-- `case-review.jpg`: prediction, provenance, explanation và phân công.
-- `mobile-review.jpg`: workspace review của Analyst trên viewport 390px.
+- `overview.jpg`: Manager dashboard.
+- `case-review.jpg`: prediction, provenance, explanation and assignment.
+- `mobile-review.jpg`: Analyst review workspace at a 390px viewport.
 
-Hồ sơ, tài khoản và LightGBM bundle đều synthetic. Điểm số trong ảnh không
-đại diện metrics Home Credit đã đánh giá. Không có dữ liệu người vay thật,
-secrets hoặc ảnh tạo bởi AI. Không chỉnh sửa nội dung ảnh; chỉ đặt viewport,
-ẩn animation khi chụp và dùng JPEG để giảm dung lượng.
+Cases, accounts and the LightGBM bundle are synthetic. Scores shown in the
+images do not represent the evaluated Home Credit metrics. The images contain
+no real borrower data, secrets or AI-generated content. Screenshot content was
+not edited; only viewport settings, animation suppression during capture and
+JPEG encoding were used.
