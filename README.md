@@ -11,8 +11,6 @@ through a human workflow: a Manager imports cases, a worker scores them, an
 Analyst reviews and proposes, and a Manager alone makes the final — simulated —
 decision. The model never decides.
 
-![Manager overview in the RiskLab web app](docs/development/ui-refresh-2026-11-15/after/manager-home-1440.jpg)
-
 > Production-oriented demo, not a production credit-decisioning system.
 > Every decision in the app is labelled simulated; `approve`/`review` model
 > output is illustrative only.
@@ -49,8 +47,7 @@ each recorded in an append-only ledger).
 | Log loss | 0.2418 | [0.2395, 0.2441] |
 
 Test run `50d36f3b142a41039ff4d72967242f9a`. Full evidence, Selection
-experiments and subgroup tables: [docs/RESULTS.md](docs/RESULTS.md) and the
-[model card](docs/model_card.md).
+experiments and subgroup tables are recorded with the MLflow runs above.
 
 On Selection, LightGBM beat Logistic Regression by +0.0132 ROC-AUC
 (95% CI [0.0091, 0.0174]) under a rule declared in config before the experiment
@@ -126,8 +123,7 @@ The stack runs PostgreSQL, a one-shot `demo-init` (migrations, demo logins,
 synthetic model bundle, demo accounts), the business API, the scoring worker
 and the Next.js web app. Only ports 3000/8000 on loopback are published.
 
-For host development (Python 3.12, Node.js 24, Docker), see the
-[application guide](docs/development/application.md):
+For host development (Python 3.12, Node.js 24, Docker):
 
 ```bash
 make setup
@@ -156,7 +152,6 @@ make app-local
 | [configs](configs), [sql](sql) | Declarative configs and feature/validation SQL |
 | [tests](tests) | Unit, integration, business and browser tests |
 | [deploy](deploy) | Compose stacks, Caddyfile, release tooling |
-| [docs](docs/README.md) | Documentation map — start here for detail |
 
 ## Verification
 
@@ -167,7 +162,6 @@ make test   # Ruff, format check, mypy, synthetic pytest gate
 Latest recorded checks (2026-11-15): 698 Python tests passed on real
 disposable PostgreSQL, frontend lint/typecheck/build passed, and browser E2E
 covered the full import → review → decision workflow on desktop and mobile.
-Current status and open blockers: [docs/PROGRESS.md](docs/PROGRESS.md).
 
 ## Known limitations
 
@@ -186,12 +180,10 @@ Current status and open blockers: [docs/PROGRESS.md](docs/PROGRESS.md).
 
 ## Documentation
 
-Start with the [documentation map](docs/README.md) (Vietnamese guides;
-portfolio README and ML evidence in English). Key documents:
-[PRD](docs/product/prd.md), [RBAC](docs/product/rbac.md),
-[workflow](docs/product/workflow.md), [architecture](docs/architecture/overview.md),
-[ML architecture](docs/PROJECT.md), [results](docs/RESULTS.md),
-[decisions](docs/DECISIONS.md). Coding agents: read [AGENTS.md](AGENTS.md).
+Detailed design documents, contracts and runbooks are maintained locally
+with the project (product requirements, RBAC and workflow contracts, ML
+evidence and operations guides). This README and the code are the public
+entry points; key invariants are summarized in the sections above.
 
 Raw data, row-level predictions and generated reports are never committed;
 only aggregate reference hashes and metrics under `reports/reference/` are

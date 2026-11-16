@@ -42,3 +42,8 @@ test-results/
 # Local companion material and experiment scratch output
 /presentation/
 /catboost_info/
+
+# Local-only reading and agent material (kept on disk, not published)
+/docs/
+/AGENTS.md
+/apps/web/AGENTS.md
