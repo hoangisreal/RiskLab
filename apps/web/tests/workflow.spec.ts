@@ -44,6 +44,12 @@ async function filterByReference(page: Page, prefix: string) {
   await page.getByRole("button", { name: "Lọc hồ sơ" }).click();
 }
 
+/** The mobile navigation lives in a closed drawer; open it before nav links. */
+async function openNav(page: Page) {
+  const toggle = page.getByRole("button", { name: "Mở menu điều hướng" });
+  if (await toggle.isVisible()) await toggle.click();
+}
+
 test("manager import to analyst review to manager decision", async ({
   page,
   browser,
@@ -76,6 +82,7 @@ test("manager import to analyst review to manager decision", async ({
   await expect(
     page.getByRole("heading", { name: "Hàng đợi review", exact: true }),
   ).toBeVisible();
+  await openNav(page);
   await page.getByRole("link", { name: "Import hồ sơ" }).click();
   await expect(
     page.getByRole("heading", { name: "Import hồ sơ demo" }),
@@ -233,6 +240,12 @@ test("manager import to analyst review to manager decision", async ({
   await analyst
     .getByLabel("Nhận xét review")
     .fill("Đã kiểm tra dữ liệu demo và xác nhận lại.");
+  // Opening and closing disclosures must not clear the draft form.
+  await analyst.getByText("Nguồn dữ liệu và provenance").click();
+  await analyst.getByText("Nguồn dữ liệu và provenance").click();
+  await expect(analyst.getByLabel("Nhận xét review")).toHaveValue(
+    "Đã kiểm tra dữ liệu demo và xác nhận lại.",
+  );
   await analyst.getByRole("button", { name: "Gửi đề xuất" }).click();
   await expect(analyst.getByText("Đã gửi đề xuất cho Manager.")).toBeVisible();
   // The Analyst never sees a decision action.
@@ -394,6 +407,7 @@ test("admin has no business access and analyst list is scoped", async ({
   await logout(page);
 
   await login(page, `analyst.flow${info.project.name}`);
+  await openNav(page);
   await page.getByRole("link", { name: "Hồ sơ", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Hồ sơ", exact: true }),

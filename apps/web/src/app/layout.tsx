@@ -42,14 +42,21 @@ export default function RootLayout({
                 </svg>
                 RiskLab
               </Link>
+              <WorkspaceNavigation />
               <SessionNavigation />
             </div>
           </header>
-          <WorkspaceNavigation />
-          <div className="simulation">
-            Chỉ mô phỏng hỗ trợ quyết định. Không sử dụng để phê duyệt tín dụng
-            thực tế.
-          </div>
+          <details className="simulation" open>
+            <summary>
+              Chỉ mô phỏng hỗ trợ quyết định — không dùng cho phê duyệt tín dụng
+              thực tế.
+            </summary>
+            <div className="simulation-body">
+              Điểm số model là thông tin tham khảo. Đề xuất của Analyst và quyết
+              định của Manager là hai bước độc lập do con người thực hiện và
+              chịu trách nhiệm.
+            </div>
+          </details>
           <main id="main" className="canvas">
             {children}
           </main>

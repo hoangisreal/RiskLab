@@ -12,20 +12,41 @@ import shutil
 from pathlib import Path
 
 import yaml
-from tests.conftest import CONFIG_DIR, REPO_ROOT, write_config_dir
-from tests.fixtures.synthetic import generate
 from typer.testing import CliRunner
 
 from risklab.business.catalog import DemoCatalog, PinnedRelease
 from risklab.business.scoring import PinnedScoringModel, runtime_protocol_hashes
 from risklab.business.storage import LocalStorage
 from risklab.cli import app as cli_app
-from risklab.config import load_data_config, load_partition_config, load_raw_schema
+from risklab.config import (
+    DataConfig,
+    RawSchema,
+    load_data_config,
+    load_partition_config,
+    load_raw_schema,
+)
 from risklab.features.application import FeatureColumns
 from risklab.features.historical import combined_columns, load_full_frame
 from risklab.manifest import library_versions
 from risklab.models.pipelines import load_lgbm_params, make_lgbm_pipeline
 from risklab.models.train import fit_pipeline
+from risklab.synthetic import generate
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+CONFIG_DIR = REPO_ROOT / "configs"
+
+
+def write_config_dir(root: Path, cfg: DataConfig, schema: RawSchema) -> Path:
+    """Write ``root/configs/{data,raw_schema}.yaml``; mirrors the test helper."""
+    cfg_dir = root / "configs"
+    cfg_dir.mkdir(parents=True, exist_ok=True)
+    (cfg_dir / "data.yaml").write_text(
+        yaml.safe_dump(cfg.model_dump(mode="json")), encoding="utf-8"
+    )
+    (cfg_dir / "raw_schema.yaml").write_text(
+        yaml.safe_dump(schema.model_dump(mode="json")), encoding="utf-8"
+    )
+    return cfg_dir
 
 
 def build_scorer(root: Path) -> tuple[PinnedScoringModel, DemoCatalog, PinnedRelease, LocalStorage]:

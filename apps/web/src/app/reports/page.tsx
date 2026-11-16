@@ -5,6 +5,8 @@ import Link from "next/link";
 import { api, messageFor } from "@/lib/api";
 import { useSession } from "@/components/session";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { PageHeader, StatusBadge } from "@/components/primitives";
+import { REVIEW_STATE_LABEL, SCORING_STATE_LABEL, labelOf } from "@/lib/labels";
 
 type Workload = {
   total: number;
@@ -34,9 +36,11 @@ type Comparison = {
 function CountTable({
   title,
   rows,
+  labels,
 }: {
   title: string;
   rows: { value: string | null; count: number }[];
+  labels?: Record<string, string>;
 }) {
   return (
     <>
@@ -55,7 +59,13 @@ function CountTable({
             <tbody>
               {rows.map((row) => (
                 <tr key={row.value ?? "null"}>
-                  <td data-label="Giá trị">{row.value ?? "Chưa phân công"}</td>
+                  <td data-label="Giá trị">
+                    {row.value == null
+                      ? "Chưa phân công"
+                      : labels
+                        ? labelOf(labels, row.value)
+                        : row.value}
+                  </td>
                   <td data-label="Số lượng">{row.count}</td>
                 </tr>
               ))}
@@ -120,33 +130,35 @@ export default function Reports() {
 
   return (
     <>
-      <div className="page-heading">
-        <h1>Báo cáo cơ bản</h1>
-        <p>
-          Số liệu lấy từ dữ liệu đã lưu trong phạm vi quyền của bạn. Model hiển
-          thị là bản đã ghim cho prediction; lịch sử quyết định luôn giữ model
-          của prediction tại thời điểm review.
-        </p>
-      </div>
+      <PageHeader
+        title="Báo cáo"
+        intro="Số liệu lấy từ dữ liệu đã lưu trong phạm vi quyền của bạn. Model hiển thị là bản đã ghim cho prediction; lịch sử quyết định luôn giữ model của prediction tại thời điểm review."
+      />
       <section className="sheet" aria-labelledby="workload-heading">
         <h2 id="workload-heading">Khối lượng hồ sơ ({workload.total})</h2>
         <CountTable
           title="Theo trạng thái review"
           rows={workload.by_review_state}
+          labels={REVIEW_STATE_LABEL}
         />
         <CountTable
           title="Theo trạng thái scoring"
           rows={workload.by_scoring_state}
+          labels={SCORING_STATE_LABEL}
         />
         <CountTable title="Theo người phụ trách" rows={workload.by_assignee} />
       </section>
       <section className="sheet section-gap" aria-labelledby="model-heading">
-        <h2 id="model-heading">Model hiện hành đã ghim</h2>
+        <p className="eyebrow">Model đang phục vụ</p>
+        <h2 id="model-heading">
+          {model.model_version}{" "}
+          <StatusBadge
+            value="SUCCEEDED"
+            label="Đang phục vụ"
+            showCode={false}
+          />
+        </h2>
         <dl className="responsibilities">
-          <div>
-            <dt>Phiên bản</dt>
-            <dd>{model.model_version}</dd>
-          </div>
           <div>
             <dt>Run / Lock</dt>
             <dd>
@@ -158,6 +170,14 @@ export default function Reports() {
             <dd>{model.feature_contract_version}</dd>
           </div>
         </dl>
+        <details className="tech">
+          <summary>Chi tiết kỹ thuật (hash, run, lock)</summary>
+          <div>
+            <p>
+              Model SHA256: <code>{model.model_sha256}</code>
+            </p>
+          </div>
+        </details>
         <h3>Giới hạn bắt buộc</h3>
         <ul>
           {model.limitations.map((item) => (
@@ -204,7 +224,10 @@ export default function Reports() {
           </div>
         ) : (
           <EmptyState>
-            Báo cáo {comparison.report_version ?? ""} chưa có model.
+            Báo cáo {comparison.report_version ?? ""} chưa có model so sánh. Bản
+            demo synthetic này chỉ kiểm tra workflow import → scoring → review →
+            quyết định, không chạy nghiên cứu so sánh model nên không dựng
+            metric hay biểu đồ thay thế.
           </EmptyState>
         )}
       </section>

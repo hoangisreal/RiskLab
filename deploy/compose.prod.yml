@@ -89,7 +89,9 @@ services:
 
   web:
     image: ${RISKLAB_WEB_IMAGE:?Set RISKLAB_WEB_IMAGE to a pinned digest}
-    build: { context: ../apps/web }
+    build:
+      context: ../apps/web
+      args: { RISKLAB_API_ORIGIN: http://api:8000 }
     environment:
       RISKLAB_API_ORIGIN: http://api:8000
       HOSTNAME: 0.0.0.0

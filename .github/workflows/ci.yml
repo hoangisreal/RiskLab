@@ -67,6 +67,24 @@ jobs:
         env:
           NEXT_TELEMETRY_DISABLED: "1"
 
+  docker-demo-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          python-version: "3.12.14"
+          version: "0.12.21"
+      - run: uv sync --locked
+      - run: docker compose -f deploy/compose.demo.yml up --build -d
+      - run: uv run python scripts/docker_demo_smoke.py
+      - if: failure()
+        run: docker compose -f deploy/compose.demo.yml logs --tail=200
+      - if: always()
+        run: docker compose -f deploy/compose.demo.yml down -v
+
   browser-e2e:
     runs-on: ubuntu-latest
     steps:

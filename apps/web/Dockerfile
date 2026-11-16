@@ -4,7 +4,10 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --ignore-scripts
 COPY . .
-ENV NEXT_TELEMETRY_DISABLED=1
+# Rewrites are compiled at build time, so the API origin must be a build arg:
+# `api:8000` inside Compose, `http://127.0.0.1:8000` for a host-built image.
+ARG RISKLAB_API_ORIGIN=http://api:8000
+ENV NEXT_TELEMETRY_DISABLED=1 RISKLAB_API_ORIGIN=$RISKLAB_API_ORIGIN
 RUN npm run build
 
 FROM node:24-bookworm-slim AS runtime

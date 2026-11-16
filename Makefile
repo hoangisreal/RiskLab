@@ -103,3 +103,22 @@ app-local:
 	$(MAKE) app-prepare
 	$(MAKE) app-build
 	$(MAKE) app-start
+
+# One-command Docker demo (synthetic data, loopback only). See README Quick Start.
+# demo-up/down/logs/reset need only Docker + Make; demo-smoke also needs host Python.
+.PHONY: demo-up demo-down demo-logs demo-smoke demo-reset
+demo-up:
+	docker compose -f deploy/compose.demo.yml up --build -d --wait --wait-timeout 600
+	@echo "RiskLab demo ready at http://localhost:3000 (see README for demo accounts)"
+
+demo-down:
+	docker compose -f deploy/compose.demo.yml down
+
+demo-logs:
+	docker compose -f deploy/compose.demo.yml logs -f --tail=200
+
+demo-smoke:
+	uv run python scripts/docker_demo_smoke.py
+
+demo-reset:
+	docker compose -f deploy/compose.demo.yml down -v

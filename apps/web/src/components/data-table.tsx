@@ -29,7 +29,10 @@ export function DataTable<T>({
   });
   return (
     <div className="table-scroll">
-      <p className="eyebrow">Sắp xếp trên trang hiện tại</p>
+      <p className="sort-note">
+        Sắp xếp chỉ áp dụng cho trang hiện tại; bộ lọc và tìm kiếm do máy chủ xử
+        lý.
+      </p>
       <table>
         <thead>
           {table.getHeaderGroups().map((g) => (

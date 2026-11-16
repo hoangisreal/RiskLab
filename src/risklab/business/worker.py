@@ -8,6 +8,7 @@ only: it never creates reviews or human decisions.
 from __future__ import annotations
 
 import json
+import os
 import signal
 import socket
 import threading
@@ -249,11 +250,35 @@ def build_runtime(settings: Settings) -> WorkerRuntime:
                 config_dir=settings.config_dir,
                 root=settings.root,
             )
-        except Exception:
-            scorer = None  # Readiness stays false; scoring jobs fail retryably.
+        except Exception as error:
+            # Readiness stays false; scoring jobs fail retryably. Log only the
+            # safe error type/code, never paths, payloads or exception text.
+            code = error.code if isinstance(error, AppError) else type(error).__name__
+            print(f"Worker scorer unavailable ({code}); imports continue, scoring waits.")
     return WorkerRuntime(
         storage=storage, config_dir=settings.config_dir, root=settings.root, scorer=scorer
     )
+
+
+def write_heartbeat(path: Path, *, scorer_ready: bool) -> None:
+    """Atomically publish worker liveness for container health checks."""
+    payload = json.dumps({"ts": time.time(), "scorer_ready": scorer_ready})
+    temporary = path.with_suffix(".tmp")
+    temporary.write_text(payload, encoding="utf-8")
+    temporary.replace(path)
+
+
+def heartbeat_fresh(
+    path: Path, *, max_age_seconds: float = 30.0, require_scorer: bool = False
+) -> bool:
+    """True only for a recent heartbeat; readiness can also require the scorer."""
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+        if time.time() - float(value["ts"]) > max_age_seconds:
+            return False
+        return not require_scorer or value.get("scorer_ready") is True
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
 
 
 def main() -> None:
@@ -263,6 +288,19 @@ def main() -> None:
         raise SystemExit("RISKLAB_DATABASE_URL is required for the worker")
     runtime = build_runtime(settings)
     worker_id = f"{socket.gethostname()}-{id(object())}"
+    heartbeat_path = os.environ.get("RISKLAB_WORKER_HEARTBEAT_FILE")
+    if heartbeat_path:
+        target = Path(heartbeat_path)
+        write_heartbeat(target, scorer_ready=runtime.scorer is not None)
+
+        def publish() -> None:
+            while not stop_event.wait(5):
+                write_heartbeat(target, scorer_ready=runtime.scorer is not None)
+
+        stop_event = threading.Event()
+        threading.Thread(target=publish, daemon=True).start()
+    else:
+        stop_event = threading.Event()
     stopped = False
 
     def stop(_signum: int, _frame: object) -> None:
@@ -276,6 +314,7 @@ def main() -> None:
             if not run_once(engine, runtime, worker_id=worker_id):
                 time.sleep(1)
     finally:
+        stop_event.set()
         engine.dispose()
 
 

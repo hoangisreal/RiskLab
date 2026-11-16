@@ -5,8 +5,10 @@ import Link from "next/link";
 import { api, apiPage, mutate, uploadImport, messageFor } from "@/lib/api";
 import { DataTable } from "@/components/data-table";
 import type { ImportJob } from "@/lib/types";
+import { IMPORT_STATE_LABEL, labelOf } from "@/lib/labels";
 import { useSession } from "@/components/session";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { PageHeader, StatusBadge } from "@/components/primitives";
 
 type Catalog = {
   version: string;
@@ -25,6 +27,7 @@ export default function Imports() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [fileMeta, setFileMeta] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
   const importIntent = useRef<{ fingerprint: string; key: string } | null>(
     null,
@@ -85,7 +88,7 @@ export default function Imports() {
       );
       importIntent.current = null;
       setMessage(
-        `Đã nhận import ${job.id.slice(0, 8)}… Trạng thái hiện tại: ${job.state}. Worker sẽ xử lý tiếp.`,
+        `Đã nhận import ${job.id.slice(0, 8)}… Trạng thái hiện tại: ${labelOf(IMPORT_STATE_LABEL, job.state)}. Worker sẽ xử lý tiếp.`,
       );
       setRefreshKey((value) => value + 1);
     } catch (failure) {
@@ -132,18 +135,27 @@ export default function Imports() {
       </>
     );
 
+  const visible = jobs.filter(
+    (j) =>
+      (!stateFilter || j.state === stateFilter) &&
+      `${j.id} ${j.catalog_version}`
+        .toLowerCase()
+        .includes(search.toLowerCase()),
+  );
+
   return (
     <>
-      <div className="page-heading">
-        <h1>Import hồ sơ demo</h1>
-        <p>
-          CSV chỉ tham chiếu snapshot synthetic trong catalog đã duyệt. File lỗi
-          không tạo hồ sơ một phần; hồ sơ thiếu nguồn bắt buộc sẽ ở trạng thái
-          INCOMPLETE và không được chấm điểm.
-        </p>
-      </div>
+      <PageHeader
+        title="Import hồ sơ demo"
+        intro="CSV chỉ tham chiếu snapshot synthetic trong catalog đã duyệt. File lỗi không tạo hồ sơ một phần; hồ sơ thiếu nguồn bắt buộc sẽ ở trạng thái thiếu nguồn và không được chấm điểm."
+      />
       <section className="sheet" aria-labelledby="import-form-heading">
         <h2 id="import-form-heading">Tạo import mới</h2>
+        <ol className="steps-list" aria-label="Ba bước import">
+          <li>Chọn catalog demo và tệp CSV đúng định dạng.</li>
+          <li>Gửi file; giữ nguyên thao tác nếu mất kết nối giữa chừng.</li>
+          <li>Theo dõi trạng thái xử lý ở danh sách bên dưới.</li>
+        </ol>
         {catalogs.length === 0 && !loading ? (
           <EmptyState>
             Chưa cấu hình catalog demo trên máy chủ. Liên hệ người vận hành.
@@ -170,9 +182,22 @@ export default function Imports() {
                 type="file"
                 accept=".csv,text/csv"
                 required
+                onChange={(event) => {
+                  const file = event.currentTarget.files?.[0];
+                  setFileMeta(
+                    file
+                      ? `${file.name} · ${(file.size / 1024).toFixed(1)} KB`
+                      : "",
+                  );
+                }}
               />
+              {fileMeta ? (
+                <p className="file-meta" role="status">
+                  Đã chọn: {fileMeta}
+                </p>
+              ) : null}
             </div>
-            <button type="submit" disabled={busy}>
+            <button type="submit" className="btn-primary" disabled={busy}>
               Import hồ sơ
             </button>
           </form>
@@ -218,19 +243,18 @@ export default function Imports() {
                 >
                   <option value="">Tất cả</option>
                   {["QUEUED", "RUNNING", "SUCCEEDED", "FAILED"].map((x) => (
-                    <option key={x}>{x}</option>
+                    <option key={x} value={x}>
+                      {labelOf(IMPORT_STATE_LABEL, x)}
+                    </option>
                   ))}
                 </select>
               </div>
             </div>
+            <p className="result-count" role="status">
+              Hiển thị {visible.length} / {jobs.length} import
+            </p>
             <DataTable
-              data={jobs.filter(
-                (j) =>
-                  (!stateFilter || j.state === stateFilter) &&
-                  `${j.id} ${j.catalog_version}`
-                    .toLowerCase()
-                    .includes(search.toLowerCase()),
-              )}
+              data={visible}
               columns={[
                 {
                   accessorKey: "id",
@@ -242,26 +266,45 @@ export default function Imports() {
                     </span>
                   ),
                 },
-                { accessorKey: "state", header: "Trạng thái" },
+                {
+                  accessorKey: "state",
+                  header: "Trạng thái",
+                  cell: ({ row }) => (
+                    <StatusBadge
+                      value={row.original.state}
+                      label={labelOf(IMPORT_STATE_LABEL, row.original.state)}
+                    />
+                  ),
+                },
                 {
                   accessorKey: "created_count",
                   header: "Kết quả",
                   cell: ({ row }) => (
                     <span>
                       {row.original.created_count}/
-                      {row.original.total_rows ?? "—"} hồ sơ · READY{" "}
-                      {row.original.ready_count} · INCOMPLETE{" "}
+                      {row.original.total_rows ?? "—"} hồ sơ · Sẵn sàng{" "}
+                      {row.original.ready_count} · Thiếu nguồn{" "}
                       {row.original.incomplete_count}
                     </span>
                   ),
                 },
                 {
                   id: "errors",
-                  header: "Lỗi",
+                  header: "Lỗi theo dòng",
                   cell: ({ row }) =>
-                    row.original.errors
-                      .map((e) => `${e.code} (dòng ${e.row ?? "—"})`)
-                      .join("; ") || "—",
+                    row.original.errors.length > 0 ? (
+                      <ul>
+                        {row.original.errors.map((e, i) => (
+                          <li key={i}>
+                            {e.code}
+                            {e.row != null ? ` (dòng ${e.row})` : ""}
+                            {e.field ? ` · ${e.field}` : ""}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      "—"
+                    ),
                 },
                 {
                   id: "actions",

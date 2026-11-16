@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Skeleton } from "./primitives";
 
 export function LoadingState({
   children = "Đang tải dữ liệu…",
@@ -6,9 +7,13 @@ export function LoadingState({
   children?: ReactNode;
 }) {
   return (
-    <p className="notice" role="status">
-      {children}
-    </p>
+    <div
+      role="status"
+      aria-label={typeof children === "string" ? children : "Đang tải dữ liệu"}
+    >
+      <Skeleton lines={4} />
+      <p className="notice">{children}</p>
+    </div>
   );
 }
 

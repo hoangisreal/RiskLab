@@ -1,16 +1,20 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 import { useSession } from "./session";
 import { api, apiPage, messageFor } from "@/lib/api";
+import { ACTION_LABEL, formatDateTime, labelOf } from "@/lib/labels";
 import { LoadingState, ErrorState, EmptyState } from "./states";
 import { DataTable } from "./data-table";
 import { CountChart } from "./risk-chart";
-import { Badge } from "./ui/badge";
+import { MetricCard, PageHeader, StatusBadge } from "./primitives";
+
 type Workload = {
   total: number;
   by_review_state: { value: string; count: number }[];
 };
+
 type Model = {
   model_version: string;
   model_sha256: string;
@@ -19,6 +23,7 @@ type Model = {
   feature_contract_version: string;
   limitations: string[];
 };
+
 type Audit = {
   id: string;
   action: string;
@@ -27,6 +32,7 @@ type Audit = {
   created_at: string;
   reason: string;
 };
+
 export function ResourcePage({
   kind,
 }: {
@@ -72,6 +78,7 @@ function ResourceWorkspace({
             if (!cancelled) {
               setEvents(result.data);
               setTotal(result.pagination.total);
+              setError("");
             }
           }
         } else if (kind === "models") {
@@ -111,12 +118,11 @@ function ResourceWorkspace({
   if (kind === "settings")
     return (
       <>
-        <div className="page-heading">
-          <p className="eyebrow">Workspace / Settings</p>
-          <h1>Settings</h1>
-          <p>Thông tin phiên và phạm vi quyền hiện tại.</p>
-        </div>
-        <section className="sheet">
+        <PageHeader
+          title="Settings"
+          intro="Thông tin phiên làm việc và phạm vi quyền của bạn. Secrets, model bundle và hạ tầng do operator quản lý, không chỉnh sửa tại đây."
+        />
+        <section className="sheet" aria-label="Tài khoản của bạn">
           <h2>Tài khoản của bạn</h2>
           <dl>
             <div>
@@ -126,7 +132,11 @@ function ResourceWorkspace({
             <div>
               <dt>Vai trò</dt>
               <dd>
-                <Badge>{user.role}</Badge>
+                <StatusBadge
+                  value={user.role}
+                  label={user.role}
+                  showCode={false}
+                />
               </dd>
             </div>
             <div>
@@ -142,22 +152,23 @@ function ResourceWorkspace({
             <p>Liên hệ Admin để đổi quyền hoặc reset mật khẩu.</p>
           )}
         </section>
-        <section className="sheet section-gap">
-          <h2>Kiểm soát hệ thống</h2>
-          <p>
-            Secrets, model bundle, deployment và backup được operator cấu hình
-            ngoài giao diện. Phiên làm việc được quản lý phía server; không có
-            tùy chọn bỏ qua authorization.
-          </p>
-        </section>
       </>
     );
   if (user.role === "ADMIN" && kind !== "audit")
     return (
       <>
-        <h1>Không có quyền nghiệp vụ</h1>
-        <p>Admin quản lý hệ thống và tài khoản.</p>
-        <Link href="/admin/users">Quản lý tài khoản</Link>
+        <h1>Tổng quan quản trị</h1>
+        <p>
+          Admin quản lý hệ thống và tài khoản, không có dashboard nghiệp vụ.
+        </p>
+        <div className="next-actions">
+          <Link href="/admin/users">
+            Quản lý tài khoản <ArrowRight size={15} aria-hidden="true" />
+          </Link>
+          <Link href="/audit" className="secondary">
+            Xem nhật ký audit <ArrowRight size={15} aria-hidden="true" />
+          </Link>
+        </div>
       </>
     );
   if (kind === "audit" && user.role !== "ADMIN")
@@ -168,35 +179,41 @@ function ResourceWorkspace({
           <h2>Lịch sử theo hồ sơ</h2>
           <p>
             Lịch sử nghiệp vụ nằm trong chi tiết từng hồ sơ và chỉ hiển thị
-            trong phạm vi truy cập của bạn. Audit quản trị tài khoản dành riêng
-            cho Admin.
+            trong phạm vi truy cập của bạn. Nhật ký quản trị tài khoản dành
+            riêng cho Admin.
           </p>
           <Link href="/applications">Chọn hồ sơ để xem lịch sử →</Link>
         </section>
       </>
     );
-  const title =
-    kind === "overview"
-      ? "Overview"
-      : kind === "models"
-        ? "Model Registry"
-        : "Audit Logs";
-  return (
-    <>
-      <div className="page-heading">
-        <p className="eyebrow">Workspace / {title}</p>
-        <h1>{title}</h1>
-        <p>
-          {kind === "overview"
-            ? "Khối lượng hồ sơ và tiến trình quyết định trong phạm vi quyền của bạn."
-            : kind === "models"
-              ? "Danh tính model đã ghim cho scoring; lịch sử prediction giữ nguyên version tại thời điểm xử lý."
-              : "Lịch sử quản trị tài khoản · Dữ liệu chỉ đọc."}
-        </p>
-      </div>
-      {loading ? (
+  if (loading) {
+    return (
+      <>
+        <PageHeader
+          title={
+            kind === "models"
+              ? "Model Registry"
+              : kind === "audit"
+                ? "Audit Logs"
+                : "Tổng quan"
+          }
+        />
         <LoadingState />
-      ) : error ? (
+      </>
+    );
+  }
+  if (error) {
+    return (
+      <>
+        <PageHeader
+          title={
+            kind === "models"
+              ? "Model Registry"
+              : kind === "audit"
+                ? "Audit Logs"
+                : "Tổng quan"
+          }
+        />
         <ErrorState
           retry={() => {
             setLoading(true);
@@ -206,8 +223,24 @@ function ResourceWorkspace({
         >
           {error}
         </ErrorState>
-      ) : kind === "audit" ? (
-        <section className="sheet">
+      </>
+    );
+  }
+  if (kind === "audit") {
+    const filtered = events.filter(
+      (e) =>
+        (!action || e.action === action) &&
+        `${e.action} ${e.actor_id} ${e.reason ?? ""}`
+          .toLowerCase()
+          .includes(search.toLowerCase()),
+    );
+    return (
+      <>
+        <PageHeader
+          title="Audit Logs"
+          intro="Lịch sử quản trị tài khoản · Dữ liệu chỉ đọc. Mô tả tiếng Việt bên dưới chỉ để đọc; mã sự kiện gốc giữ nguyên để tra cứu."
+        />
+        <section className="sheet" aria-label="Nhật ký quản trị">
           <form className="filterbar" onSubmit={(e) => e.preventDefault()}>
             <div className="field">
               <label htmlFor="audit-search">Tìm trong trang</label>
@@ -231,24 +264,37 @@ function ResourceWorkspace({
               </select>
             </div>
           </form>
-          {events.length ? (
+          {filtered.length ? (
             <DataTable
-              data={events.filter(
-                (e) =>
-                  (!action || e.action === action) &&
-                  `${e.action} ${e.actor_id} ${e.reason ?? ""}`
-                    .toLowerCase()
-                    .includes(search.toLowerCase()),
-              )}
+              data={filtered}
               columns={[
-                { accessorKey: "created_at", header: "Thời gian" },
-                { accessorKey: "action", header: "Hành động" },
-                { accessorKey: "actor_id", header: "Actor" },
+                {
+                  accessorKey: "created_at",
+                  header: "Thời điểm",
+                  cell: ({ row }) => (
+                    <time title={row.original.created_at}>
+                      {formatDateTime(row.original.created_at)}
+                    </time>
+                  ),
+                },
+                {
+                  accessorKey: "action",
+                  header: "Sự kiện",
+                  cell: ({ row }) => (
+                    <span>
+                      {labelOf(ACTION_LABEL, row.original.action)}{" "}
+                      <code className="status-code">{row.original.action}</code>
+                    </span>
+                  ),
+                },
+                { accessorKey: "actor_id", header: "Người thực hiện" },
                 { accessorKey: "reason", header: "Lý do" },
               ]}
             />
-          ) : (
+          ) : events.length === 0 ? (
             <EmptyState>Chưa có sự kiện.</EmptyState>
+          ) : (
+            <p>Không có kết quả phù hợp.</p>
           )}
           <div className="pagination">
             <button
@@ -261,7 +307,9 @@ function ResourceWorkspace({
             >
               Trang trước
             </button>
-            <span>Trang {page}</span>
+            <span>
+              Trang {page} · Tổng {total} sự kiện
+            </span>
             <button
               disabled={page * 20 >= total}
               onClick={() => {
@@ -274,98 +322,138 @@ function ResourceWorkspace({
             </button>
           </div>
         </section>
-      ) : kind === "models" && model ? (
-        <section className="sheet">
-          <div className="inline">
-            <h2>{model.model_version}</h2>
-            <Badge variant="secondary">Pinned release</Badge>
-          </div>
+      </>
+    );
+  }
+  if (kind === "models" && model) {
+    return (
+      <>
+        <PageHeader
+          title="Model Registry"
+          intro="Danh tính model đã ghim cho scoring. Lịch sử prediction giữ nguyên version tại thời điểm xử lý; màn hình này chỉ đọc."
+        />
+        <section className="sheet" aria-label="Model đang ghim">
+          <p className="eyebrow">Model đang ghim · Pinned release</p>
+          <h2>
+            <span>{model.model_version}</span>{" "}
+            <StatusBadge
+              value="SUCCEEDED"
+              label="Đang phục vụ"
+              showCode={false}
+            />
+          </h2>
           <dl>
-            {[
-              ["Model SHA256", model.model_sha256],
-              ["Run ID", model.model_run_id],
-              ["Lock ID", model.lock_id],
-              ["Feature contract", model.feature_contract_version],
-            ].map(([k, v]) => (
-              <div key={k}>
-                <dt>{k}</dt>
-                <dd className="break-all font-mono text-xs">{v}</dd>
-              </div>
-            ))}
+            <div>
+              <dt>Run / Lock</dt>
+              <dd>
+                {model.model_run_id} · {model.lock_id}
+              </dd>
+            </div>
+            <div>
+              <dt>Feature contract</dt>
+              <dd>{model.feature_contract_version}</dd>
+            </div>
           </dl>
+          <details className="tech">
+            <summary>Chi tiết kỹ thuật (hash, run, lock)</summary>
+            <div>
+              <p>
+                Model SHA256: <code>{model.model_sha256}</code>
+              </p>
+              <p>
+                Run ID: <code>{model.model_run_id}</code> · Lock ID:{" "}
+                <code>{model.lock_id}</code>
+              </p>
+            </div>
+          </details>
           <p className="notice">
             Đăng ký, promote và rollback model là thao tác operator qua CLI có
-            integrity gates và audit. Màn hình này chỉ đọc; metadata không chứng
-            minh worker sẵn sàng.
+            integrity gates và audit. Metadata không chứng minh worker sẵn sàng.
           </p>
           <Link href="/reports">Xem báo cáo và bằng chứng model →</Link>
           {model.limitations.map((l) => (
             <p key={l}>{l}</p>
           ))}
         </section>
-      ) : workload ? (
-        <>
-          <div className="metric-grid">
-            {[
-              ["Tổng hồ sơ", workload.total],
-              [
-                "Đang review",
-                workload.by_review_state.find((x) => x.value === "IN_REVIEW")
-                  ?.count ?? 0,
-              ],
-              [
-                "Chờ Manager",
-                workload.by_review_state.find(
-                  (x) => x.value === "PENDING_DECISION",
-                )?.count ?? 0,
-              ],
-              [
-                "Đã quyết định",
-                workload.by_review_state.find((x) => x.value === "DECIDED")
-                  ?.count ?? 0,
-              ],
-            ].map(([k, v]) => (
-              <div className="metric" key={k}>
-                <small>{k}</small>
-                <strong>{v}</strong>
-              </div>
-            ))}
+      </>
+    );
+  }
+  if (workload) {
+    const count = (value: string) =>
+      workload.by_review_state.find((x) => x.value === value)?.count ?? 0;
+    const nextHref =
+      user.role === "MANAGER" ? "/review-queue" : "/review-queue";
+    const nextLabel =
+      user.role === "MANAGER"
+        ? "Review đề xuất của Analyst"
+        : "Tiếp tục hồ sơ được giao";
+    return (
+      <>
+        <PageHeader
+          title="Tổng quan"
+          intro="Khối lượng hồ sơ và tiến trình quyết định trong phạm vi quyền của bạn."
+        />
+        <div className="next-actions" aria-label="Hành động tiếp theo">
+          <Link href={nextHref}>
+            {nextLabel} <ArrowRight size={15} aria-hidden="true" />
+          </Link>
+          {user.role === "MANAGER" ? (
+            <Link href="/imports" className="secondary">
+              Import hồ sơ mới <ArrowRight size={15} aria-hidden="true" />
+            </Link>
+          ) : null}
+          <Link href="/reports" className="secondary">
+            Xem báo cáo <ArrowRight size={15} aria-hidden="true" />
+          </Link>
+        </div>
+        <div className="metric-grid" role="list" aria-label="Số liệu tổng quan">
+          <div role="listitem">
+            <MetricCard label="Tổng hồ sơ" value={workload.total} />
           </div>
-          <div className="detail-grid">
-            <section className="sheet">
-              <h2>Phân bố trạng thái review</h2>
-              {workload.total ? (
-                <CountChart data={workload.by_review_state} />
-              ) : (
-                <EmptyState>
-                  Chưa có hồ sơ. Manager có thể import catalog synthetic.
-                </EmptyState>
-              )}
-            </section>
-            <section className="sheet">
-              <p className="eyebrow">Next action</p>
-              <h2>
-                {user.role === "MANAGER"
-                  ? "Review đề xuất của Analyst"
-                  : "Tiếp tục hồ sơ được giao"}
-              </h2>
-              <p>
-                Kiểm tra dữ liệu và prediction trước khi đưa ra nhận định. Mọi
-                quyết định cuối đều được ghi audit.
-              </p>
-              <Link href="/review-queue">Mở Review Queue →</Link>
-              <hr className="my-6 border-border" />
-              <small>MODEL ĐANG GHIM</small>
-              <p>{model?.model_version ?? "Metadata chưa sẵn sàng"}</p>
-              <Badge variant="outline">ML prediction ≠ Human decision</Badge>
-            </section>
+          <div role="listitem">
+            <MetricCard label="Đang review" value={count("IN_REVIEW")} />
           </div>
-        </>
-      ) : (
-        <EmptyState>Chưa có dữ liệu.</EmptyState>
-      )}
-    </>
-  );
+          <div role="listitem">
+            <MetricCard label="Chờ Manager" value={count("PENDING_DECISION")} />
+          </div>
+          <div role="listitem">
+            <MetricCard label="Đã quyết định" value={count("DECIDED")} />
+          </div>
+        </div>
+        <div className="detail-grid">
+          <section className="sheet" aria-label="Phân bố trạng thái review">
+            <h2>Phân bố trạng thái review</h2>
+            {workload.total ? (
+              <CountChart data={workload.by_review_state} />
+            ) : (
+              <EmptyState>
+                Chưa có hồ sơ. Manager có thể import catalog synthetic.
+              </EmptyState>
+            )}
+          </section>
+          <section className="sheet" aria-label="Model đang ghim">
+            <p className="eyebrow">Model đang ghim</p>
+            <p>
+              <strong>{model?.model_version ?? "Chưa sẵn sàng"}</strong>
+            </p>
+            <p>
+              <StatusBadge
+                value="READY"
+                label="ML prediction ≠ quyết định của con người"
+                showCode={false}
+              />
+            </p>
+            <p>
+              Điểm số là tham khảo cho review; quyết định cuối thuộc về Manager
+              và được ghi audit.
+            </p>
+            <Link href="/models">Mở Model Registry →</Link>
+          </section>
+        </div>
+      </>
+    );
+  }
+  return <EmptyState>Chưa có dữ liệu.</EmptyState>;
 }
 
 export function OverviewDashboard() {

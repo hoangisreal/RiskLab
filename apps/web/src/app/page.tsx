@@ -9,8 +9,11 @@ export default function Home() {
     return (
       <>
         <OverviewDashboard />
-        <section className="sheet section-gap">
-          <h2>Kết nối ứng dụng</h2>
+        <section
+          className="sheet section-gap"
+          aria-labelledby="connection-heading"
+        >
+          <h2 id="connection-heading">Kết nối ứng dụng</h2>
           <ConnectionStatus />
         </section>
       </>

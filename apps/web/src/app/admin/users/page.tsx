@@ -3,8 +3,15 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { api, ApiError, mutate, messageFor } from "@/lib/api";
+import {
+  ACTION_LABEL,
+  ROLE_LABEL,
+  formatDateTime,
+  labelOf,
+} from "@/lib/labels";
 import { useSession, type User } from "@/components/session";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { PageHeader, StatusBadge } from "@/components/primitives";
 
 type UsersPage = {
   data: User[];
@@ -218,13 +225,10 @@ export default function Users() {
 
   return (
     <>
-      <div className="page-heading">
-        <h1>Quản lý tài khoản</h1>
-        <p>
-          Admin quản lý quyền truy cập, không được chốt quyết định nghiệp vụ
-          theo quyền mặc định.
-        </p>
-      </div>
+      <PageHeader
+        title="Quản lý tài khoản"
+        intro="Admin quản lý quyền truy cập, không được chốt quyết định nghiệp vụ theo quyền mặc định. Tài khoản đang chọn được tô sáng; mọi thay đổi thu hồi phiên ngay."
+      />
       {error && <ErrorState retry={reload}>{error}</ErrorState>}
       {message && (
         <p role="status" className="notice">
@@ -284,11 +288,27 @@ export default function Users() {
               </thead>
               <tbody>
                 {rows.map((row) => (
-                  <tr key={row.id}>
-                    <td data-label="Tên đăng nhập">{row.username}</td>
-                    <td data-label="Vai trò">{row.role}</td>
+                  <tr
+                    key={row.id}
+                    aria-current={selected?.id === row.id ? "true" : undefined}
+                  >
+                    <td data-label="Tên đăng nhập">
+                      <strong>{row.username}</strong>
+                      {selected?.id === row.id ? " (đang chọn)" : ""}
+                    </td>
+                    <td data-label="Vai trò">
+                      <StatusBadge
+                        value={row.role}
+                        label={ROLE_LABEL[row.role] ?? row.role}
+                      />
+                    </td>
                     <td data-label="Trạng thái">
-                      {row.is_active ? "Đang hoạt động" : "Đã vô hiệu hóa"}
+                      <StatusBadge
+                        value={row.is_active ? "READY" : "INVALID"}
+                        label={
+                          row.is_active ? "Đang hoạt động" : "Đã vô hiệu hóa"
+                        }
+                      />
                     </td>
                     <td data-label="Thao tác">
                       <button
@@ -404,17 +424,23 @@ export default function Users() {
           {auditPending ? (
             <LoadingState>Đang tải lịch sử…</LoadingState>
           ) : audit.length ? (
-            <ul>
+            <ol className="timeline">
               {audit.map((event) => (
                 <li key={event.id}>
-                  {new Date(event.created_at).toLocaleString("vi-VN", {
-                    timeZone: "UTC",
-                  })}{" "}
-                  UTC · {event.action}
-                  {event.reason ? ` · ${event.reason}` : ""}
+                  <strong>{labelOf(ACTION_LABEL, event.action)}</strong>{" "}
+                  <span className="event-meta">
+                    ·{" "}
+                    <time title={event.created_at}>
+                      {formatDateTime(event.created_at)}
+                    </time>
+                  </span>
+                  <div className="event-meta">
+                    <code>{event.action}</code> · id {event.id.slice(0, 8)}…
+                  </div>
+                  {event.reason ? <p>{event.reason}</p> : ""}
                 </li>
               ))}
-            </ul>
+            </ol>
           ) : (
             <EmptyState>Chưa có lịch sử để hiển thị.</EmptyState>
           )}

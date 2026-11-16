@@ -1,22 +1,55 @@
 "use client";
 
-import { DataTable } from "@/components/data-table";
-import { Badge } from "@/components/ui/badge";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { DataTable } from "@/components/data-table";
 import { apiPage, messageFor } from "@/lib/api";
 import type { ApplicationSummary } from "@/lib/types";
+import {
+  FEATURE_AVAILABILITY_LABEL,
+  REVIEW_STATE_LABEL,
+  SCORING_STATE_LABEL,
+  labelOf,
+} from "@/lib/labels";
 import { useSession } from "@/components/session";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { PageHeader, StatusBadge } from "@/components/primitives";
+
+const PAGE_SIZE = 20;
+
+function queueDefault(role: string): string {
+  return role === "MANAGER" ? "PENDING_DECISION" : "ASSIGNED";
+}
 
 export default function Applications({ queue = false }: { queue?: boolean }) {
+  return (
+    <Suspense fallback={<LoadingState />}>
+      <ApplicationsInner queue={queue} />
+    </Suspense>
+  );
+}
+
+function ApplicationsInner({ queue = false }: { queue?: boolean }) {
   const { user, pending } = useSession();
+  const router = useRouter();
+  const params = useSearchParams();
   const [rows, setRows] = useState<ApplicationSummary[]>([]);
   const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [query, setQuery] = useState("");
-  const [reviewState, setReviewState] = useState(queue ? "QUEUE" : "");
-  const [scoringState, setScoringState] = useState("");
+  // Draft inputs; applied only on submit so typing never fires requests.
+  const [query, setQuery] = useState(params.get("q") ?? "");
+  const [reviewState, setReviewState] = useState(
+    params.get("review_state") ?? (queue ? "QUEUE" : ""),
+  );
+  const [scoringState, setScoringState] = useState(
+    params.get("scoring_state") ?? "",
+  );
+  const applied = {
+    q: params.get("q") ?? "",
+    review_state: params.get("review_state") ?? (queue ? "QUEUE" : ""),
+    scoring_state: params.get("scoring_state") ?? "",
+    page: Math.max(1, Number(params.get("page") ?? "1") || 1),
+  };
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
@@ -24,19 +57,21 @@ export default function Applications({ queue = false }: { queue?: boolean }) {
   useEffect(() => {
     if (!user || user.role === "ADMIN") return;
     const controller = new AbortController();
-    const params = new URLSearchParams({ page: String(page), page_size: "20" });
-    if (query) params.set("q", query);
-    if (reviewState)
-      params.set(
+    const search = new URLSearchParams({
+      page: String(applied.page),
+      page_size: String(PAGE_SIZE),
+    });
+    if (applied.q) search.set("q", applied.q);
+    if (applied.review_state)
+      search.set(
         "review_state",
-        reviewState === "QUEUE"
-          ? user.role === "MANAGER"
-            ? "PENDING_DECISION"
-            : "ASSIGNED"
-          : reviewState,
+        applied.review_state === "QUEUE"
+          ? queueDefault(user.role)
+          : applied.review_state,
       );
-    if (scoringState) params.set("scoring_state", scoringState);
-    void apiPage<ApplicationSummary>(`/api/v1/applications?${params}`)
+    if (applied.scoring_state)
+      search.set("scoring_state", applied.scoring_state);
+    void apiPage<ApplicationSummary>(`/api/v1/applications?${search}`)
       .then((result) => {
         if (!controller.signal.aborted) {
           setRows(result.data);
@@ -51,7 +86,14 @@ export default function Applications({ queue = false }: { queue?: boolean }) {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [user, page, query, reviewState, scoringState, refreshKey]);
+  }, [
+    user,
+    applied.q,
+    applied.review_state,
+    applied.scoring_state,
+    applied.page,
+    refreshKey,
+  ]);
 
   if (pending) return <LoadingState />;
   if (!user)
@@ -71,37 +113,65 @@ export default function Applications({ queue = false }: { queue?: boolean }) {
       </>
     );
 
+  function submitParams(next: URLSearchParams) {
+    // Replacing with identical params fires no navigation, so refetch
+    // explicitly instead of leaving the loading skeleton stuck on.
+    setLoading(true);
+    if (next.toString() === params.toString()) {
+      setRefreshKey((value) => value + 1);
+    } else {
+      router.replace(`?${next.toString()}`);
+    }
+  }
+
+  function applyFilters(event?: React.FormEvent) {
+    event?.preventDefault();
+    const next = new URLSearchParams();
+    if (query.trim()) next.set("q", query.trim());
+    if (reviewState) next.set("review_state", reviewState);
+    if (scoringState) next.set("scoring_state", scoringState);
+    next.set("page", "1");
+    submitParams(next);
+  }
+
+  function clearFilters() {
+    setQuery("");
+    setReviewState(queue ? "QUEUE" : "");
+    setScoringState("");
+    submitParams(new URLSearchParams("page=1"));
+  }
+
+  function goTo(page: number) {
+    const next = new URLSearchParams(params.toString());
+    next.set("page", String(page));
+    submitParams(next);
+  }
+
+  const hasFilter = Boolean(
+    applied.q || applied.review_state || applied.scoring_state,
+  );
+
   return (
     <>
-      <div className="page-heading">
-        <h1>{queue ? "Hàng đợi review" : "Hồ sơ"}</h1>
-        <p>
-          {user.role === "ANALYST"
+      <PageHeader
+        title={queue ? "Hàng đợi review" : "Hồ sơ"}
+        intro={
+          user.role === "ANALYST"
             ? "Chỉ hiển thị hồ sơ được phân công cho bạn."
-            : "Toàn bộ hồ sơ demo trong phạm vi Manager."}{" "}
-          Điểm số là hỗ trợ quyết định mô phỏng, không phải phán quyết tự động.
-        </p>
-      </div>
+            : "Toàn bộ hồ sơ demo trong phạm vi Manager."
+        }
+      />
       <section className="sheet" aria-labelledby="applications-heading">
         <h2 id="applications-heading">Danh sách hồ sơ</h2>
-        <form
-          className="filterbar"
-          onSubmit={(event) => {
-            event.preventDefault();
-            setPage(1);
-            setRefreshKey((value) => value + 1);
-          }}
-        >
+        <form className="filterbar" onSubmit={applyFilters}>
           <div className="field">
             <label htmlFor="filter-q">Mã hồ sơ</label>
             <input
               id="filter-q"
               value={query}
-              onChange={(event) => {
-                setPage(1);
-                setQuery(event.target.value);
-              }}
+              onChange={(event) => setQuery(event.target.value)}
               maxLength={64}
+              placeholder="VD: DEMO-001"
             />
           </div>
           <div className="field">
@@ -109,10 +179,7 @@ export default function Applications({ queue = false }: { queue?: boolean }) {
             <select
               id="filter-review"
               value={reviewState}
-              onChange={(event) => {
-                setPage(1);
-                setReviewState(event.target.value);
-              }}
+              onChange={(event) => setReviewState(event.target.value)}
             >
               <option value="">Tất cả</option>
               {queue && (
@@ -134,10 +201,7 @@ export default function Applications({ queue = false }: { queue?: boolean }) {
             <select
               id="filter-scoring"
               value={scoringState}
-              onChange={(event) => {
-                setPage(1);
-                setScoringState(event.target.value);
-              }}
+              onChange={(event) => setScoringState(event.target.value)}
             >
               <option value="">Tất cả</option>
               <option value="NOT_REQUESTED">Chưa yêu cầu</option>
@@ -147,8 +211,21 @@ export default function Applications({ queue = false }: { queue?: boolean }) {
               <option value="FAILED">Chấm điểm lỗi</option>
             </select>
           </div>
-          <button type="submit">Lọc hồ sơ</button>
+          <div className="filterbar-actions">
+            <button type="submit" className="btn-primary">
+              Lọc hồ sơ
+            </button>
+            {hasFilter ? (
+              <button type="button" onClick={clearFilters}>
+                Xóa bộ lọc
+              </button>
+            ) : null}
+          </div>
         </form>
+        <p className="result-count" role="status">
+          Tổng {total} hồ sơ
+          {hasFilter ? " khớp bộ lọc" : ""}
+        </p>
         {loading ? (
           <LoadingState />
         ) : error ? (
@@ -156,7 +233,11 @@ export default function Applications({ queue = false }: { queue?: boolean }) {
             {error}
           </ErrorState>
         ) : rows.length === 0 ? (
-          <EmptyState>Chưa có hồ sơ phù hợp.</EmptyState>
+          <EmptyState>
+            {hasFilter
+              ? "Không có hồ sơ khớp bộ lọc. Thử xóa bộ lọc hoặc tìm mã khác."
+              : "Chưa có hồ sơ nào."}
+          </EmptyState>
         ) : (
           <DataTable
             data={rows}
@@ -167,26 +248,48 @@ export default function Applications({ queue = false }: { queue?: boolean }) {
                 accessorFn: (row) => row.assignee?.username ?? "—",
                 header: "Người phụ trách",
               },
-              { accessorKey: "feature_availability", header: "Nguồn dữ liệu" },
-              {
-                accessorKey: "scoring_state",
-                header: "Scoring",
-                cell: ({ row }) => (
-                  <Badge variant="secondary">
-                    {row.original.scoring_state}
-                  </Badge>
-                ),
-              },
               {
                 accessorKey: "review_state",
                 header: "Review",
                 cell: ({ row }) => (
-                  <Badge variant="outline">{row.original.review_state}</Badge>
+                  <StatusBadge
+                    value={row.original.review_state}
+                    label={labelOf(
+                      REVIEW_STATE_LABEL,
+                      row.original.review_state,
+                    )}
+                  />
+                ),
+              },
+              {
+                accessorKey: "scoring_state",
+                header: "Scoring",
+                cell: ({ row }) => (
+                  <StatusBadge
+                    value={row.original.scoring_state}
+                    label={labelOf(
+                      SCORING_STATE_LABEL,
+                      row.original.scoring_state,
+                    )}
+                  />
+                ),
+              },
+              {
+                accessorKey: "feature_availability",
+                header: "Dữ liệu",
+                cell: ({ row }) => (
+                  <StatusBadge
+                    value={row.original.feature_availability}
+                    label={labelOf(
+                      FEATURE_AVAILABILITY_LABEL,
+                      row.original.feature_availability,
+                    )}
+                  />
                 ),
               },
               {
                 id: "detail",
-                header: "Chi tiết",
+                header: "Thao tác",
                 cell: ({ row }) => (
                   <Link href={`/applications/${row.original.id}`}>
                     Xem hồ sơ
@@ -197,13 +300,19 @@ export default function Applications({ queue = false }: { queue?: boolean }) {
           />
         )}
         <div className="pagination">
-          <button disabled={page <= 1} onClick={() => setPage(page - 1)}>
+          <button
+            disabled={applied.page <= 1}
+            onClick={() => goTo(applied.page - 1)}
+          >
             Trang trước
           </button>
           <span>
-            Trang {page} · Tổng {total} hồ sơ
+            Trang {applied.page} · Tổng {total} hồ sơ
           </span>
-          <button disabled={rows.length < 20} onClick={() => setPage(page + 1)}>
+          <button
+            disabled={applied.page * PAGE_SIZE >= total}
+            onClick={() => goTo(applied.page + 1)}
+          >
             Trang sau
           </button>
         </div>

@@ -34,15 +34,15 @@ export default function Login() {
     }
   }
   return (
-    <>
+    <div className="login-wrap">
       <div className="page-heading">
-        <h1>Đăng nhập</h1>
-        <p>
-          Sử dụng tài khoản do Admin cấp. Không chia sẻ mật khẩu hoặc dùng dữ
-          liệu người vay thật.
+        <h1>Đăng nhập RiskLab</h1>
+        <p className="login-intro">
+          Môi trường mô phỏng hỗ trợ quyết định tín dụng. Sử dụng tài khoản do
+          Admin cấp; không dùng dữ liệu người vay thật.
         </p>
       </div>
-      <form className="sheet form-sheet" onSubmit={submit} aria-busy={busy}>
+      <form className="sheet" onSubmit={submit} aria-busy={busy}>
         <div className="field">
           <label htmlFor="username">Tên đăng nhập</label>
           <input
@@ -69,11 +69,15 @@ export default function Login() {
             required
           />
         </div>
-        <button type="submit" disabled={busy}>
+        <button type="submit" className="btn-primary" disabled={busy}>
           {busy ? "Đang đăng nhập…" : "Đăng nhập"}
         </button>
         {error && <ErrorState>{error}</ErrorState>}
       </form>
-    </>
+      <p className="notice">
+        Demo local: ba vai trò Analyst, Manager và Admin với dữ liệu synthetic.
+        Liên hệ Admin nếu bạn chưa có tài khoản.
+      </p>
+    </div>
   );
 }

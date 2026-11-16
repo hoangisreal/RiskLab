@@ -1,0 +1,129 @@
+# RiskLab Docker demo: the complete business workflow on synthetic data.
+# One command from a clean clone:  docker compose -f deploy/compose.demo.yml up --build
+# Demo-only credentials below are overridable via environment and must never
+# be reused outside this loopback stack. Production uses compose.prod.yml.
+name: risklab-demo
+
+x-demo-db: &demo-db
+  RISKLAB_DEMO_OWNER_DB_PASSWORD: "${RISKLAB_DEMO_OWNER_DB_PASSWORD:-risklab-demo-owner}"
+  RISKLAB_DEMO_API_DB_PASSWORD: "${RISKLAB_DEMO_API_DB_PASSWORD:-risklab-demo-api}"
+  RISKLAB_DEMO_WORKER_DB_PASSWORD: "${RISKLAB_DEMO_WORKER_DB_PASSWORD:-risklab-demo-worker}"
+
+x-bundle-env: &bundle-env
+  RISKLAB_ENVIRONMENT: development
+  RISKLAB_ORIGIN: http://localhost:3000
+  RISKLAB_APP_ROOT: /demo
+  RISKLAB_CONFIG_DIR: /demo/configs
+  RISKLAB_STORAGE_ROOT: /app/data/application/objects
+  RISKLAB_CATALOG_FILE: /demo/catalog.json
+  # SHA256 of the committed synthetic fixture tests/fixtures/business_v1/catalog.json;
+  # tests/integration/test_demo_compose.py fails if the fixture changes without this.
+  RISKLAB_CATALOG_SHA256: "77b629850c83fa9c7dad1f887f1605749e8a7c7e10b46ec1bd4c2f7b84ec30e6"
+  RISKLAB_RELEASE_FILE: /demo/release.json
+  RISKLAB_MODEL_FILE: /demo/model.pkl
+  RISKLAB_COMPARISON_FILE: /demo/comparison.json
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: risklab_migrator
+      POSTGRES_DB: risklab
+      POSTGRES_PASSWORD: "${RISKLAB_DEMO_OWNER_DB_PASSWORD:-risklab-demo-owner}"
+    volumes:
+      - demo_db:/var/lib/postgresql/data
+      - ./postgres-roles.sql:/docker-entrypoint-initdb.d/00_roles.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U risklab_migrator -d risklab"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+    logging: &logging
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  demo-init:
+    build: { context: .., target: train }
+    entrypoint: ["/app/.venv/bin/python", "-m", "scripts.demo_compose_init"]
+    user: "0:0"
+    working_dir: /workspace
+    environment:
+      <<: *demo-db
+      RISKLAB_ENVIRONMENT: development
+      RISKLAB_DEMO_ROOT: /demo
+      RISKLAB_DEMO_SECRETS_DIR: /demo-secrets
+      RISKLAB_DEMO_ADMIN_PASSWORD: "${RISKLAB_DEMO_ADMIN_PASSWORD:-RiskLabDemo-Admin1}"
+      RISKLAB_DEMO_MANAGER_PASSWORD: "${RISKLAB_DEMO_MANAGER_PASSWORD:-RiskLabDemo-Manager1}"
+      RISKLAB_DEMO_ANALYST_PASSWORD: "${RISKLAB_DEMO_ANALYST_PASSWORD:-RiskLabDemo-Analyst1}"
+      PYTHONPATH: /workspace
+      OPENBLAS_NUM_THREADS: "1"
+      OMP_NUM_THREADS: "1"
+      MLFLOW_DISABLE_AGENT_HINT: "1"
+    volumes:
+      - ..:/workspace:ro
+      - demo_bundle:/demo
+      - demo_secrets_api:/demo-secrets/api
+      - demo_secrets_worker:/demo-secrets/worker
+    depends_on: { postgres: { condition: service_healthy } }
+    restart: "no"
+    logging: *logging
+
+  api:
+    build: { context: .., target: business }
+    environment:
+      <<: *bundle-env
+      RISKLAB_DATABASE_URL_FILE: /demo-secrets/api_url
+    ports: ["127.0.0.1:8000:8000"]
+    volumes:
+      - demo_bundle:/demo:ro
+      - demo_secrets_api:/demo-secrets:ro
+      - demo_objects:/app/data/application/objects
+    depends_on:
+      demo-init: { condition: service_completed_successfully }
+      postgres: { condition: service_healthy }
+    restart: unless-stopped
+    logging: *logging
+
+  worker:
+    build: { context: .., target: worker }
+    environment:
+      <<: *bundle-env
+      RISKLAB_DATABASE_URL_FILE: /demo-secrets/worker_url
+      RISKLAB_WORKER_HEARTBEAT_FILE: /tmp/worker-heartbeat.json
+    volumes:
+      # Worker needs a writable bundle: DuckDB spills temp files under the
+      # demo root. The API keeps the read-only mount; production stays ro.
+      - demo_bundle:/demo
+      - demo_secrets_worker:/demo-secrets:ro
+      - demo_objects:/app/data/application/objects
+    healthcheck:
+      test: ["CMD", "/app/.venv/bin/python", "-c", "import json, time; d = json.loads(open('/tmp/worker-heartbeat.json').read()); raise SystemExit(0 if time.time() - d['ts'] <= 30 and d.get('scorer_ready') is True else 1)"]
+      interval: 10s
+      timeout: 10s
+      retries: 6
+    depends_on:
+      demo-init: { condition: service_completed_successfully }
+      postgres: { condition: service_healthy }
+    restart: unless-stopped
+    logging: *logging
+
+  web:
+    build:
+      context: ../apps/web
+      args: { RISKLAB_API_ORIGIN: http://api:8000 }
+    environment:
+      RISKLAB_API_ORIGIN: http://api:8000
+      HOSTNAME: 0.0.0.0
+      PORT: "3000"
+    ports: ["127.0.0.1:3000:3000"]
+    depends_on: { api: { condition: service_healthy } }
+    restart: unless-stopped
+    logging: *logging
+
+volumes:
+  demo_db:
+  demo_bundle:
+  demo_objects:
+  demo_secrets_api:
+  demo_secrets_worker:
