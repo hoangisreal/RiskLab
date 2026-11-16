@@ -1,0 +1,38 @@
+# E7 declared before execution: fixed-budget breadth, not a new selection cycle.
+# Current revision removes the prevalence-only estimator at the owner's request.
+seed: 20261117
+groups: [bureau, previous, installments]
+threads: 4
+prediction_threads: 1
+bootstrap_resamples: 1000
+min_gain: 0.005
+threshold: 0.08040201
+shared_baselines: experiments/e5.yaml
+decision_tree:
+  max_depth: 8
+  min_samples_leaf: 100
+random_forest:
+  n_estimators: 200
+  max_depth: 14
+  min_samples_leaf: 50
+  max_samples: 0.8
+extra_trees:
+  n_estimators: 200
+  max_depth: 14
+  min_samples_leaf: 50
+adaboost:
+  n_estimators: 150
+  learning_rate: 0.05
+gaussian_nb:
+  var_smoothing: 0.000000001
+mlp:
+  hidden_layer_sizes: [64, 32]
+  max_iter: 60
+  batch_size: 1024
+  alpha: 0.001
+  early_stopping: true
+  n_iter_no_change: 8
+linear_svm:
+  C: 0.01
+  max_iter: 3000
+  calibration: sigmoid

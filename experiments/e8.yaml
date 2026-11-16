@@ -1,0 +1,15 @@
+# Declared after schema/dictionary inspection only, before any target analysis.
+# Current revision compares only LR/LightGBM/XGBoost; historical runs stay local.
+seed: 20261118
+shares: {train: 0.55, calibration: 0.10, selection: 0.10, test: 0.15, monitoring: 0.10}
+gap_weeks: 4
+train_cap: 300000
+threads: 4
+block_bootstrap_resamples: 1000
+numeric: [credamount_770A, annuity_780A, maininc_215A, numactivecreds_622L, numactiverelcontr_750L, numinstls_657L, numinstpaid_4499208L, monthsannuity_845L, applications30d_658L, applicationscnt_1086L]
+categorical: [previouscontdistrict_112M]
+cv_train_fractions: [0.5, 0.7]
+cv_validation_fraction: 0.2
+lgbm_rounds: 300
+xgb_rounds: 400
+lr_c: 0.01

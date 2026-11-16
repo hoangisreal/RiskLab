@@ -43,7 +43,55 @@ test-results/
 /presentation/
 /catboost_info/
 
-# Local-only reading and agent material (kept on disk, not published)
-/docs/
+# Public human evidence is allowlisted; local working material remains private.
+/docs/*
+!/docs/README.md
+!/docs/RESULTS.md
+!/docs/model_card.md
+!/docs/OPERATIONS.md
+!/docs/archive/
+/docs/archive/*
+!/docs/archive/leakage.md
+!/docs/portfolio/
+/docs/portfolio/*
+!/docs/portfolio/verification.md
+!/docs/portfolio/temporal-validation.md
+!/docs/portfolio/model-comparison.md
+!/docs/portfolio/source-revisions.md
+!/docs/portfolio/benchmark-evidence.json
+!/docs/assets/
+/docs/assets/*
+!/docs/assets/overview.jpg
+!/docs/assets/case-review.jpg
+!/docs/assets/mobile-review.jpg
+!/docs/assets/README.md
 /AGENTS.md
 /apps/web/AGENTS.md
+
+# Coding-assistant instructions, settings, prompts and local scratch material.
+**/[Aa][Gg][Ee][Nn][Tt][Ss].[Mm][Dd]
+**/[Cc][Ll][Aa][Uu][Dd][Ee].[Mm][Dd]
+**/[Gg][Ee][Mm][Ii][Nn][Ii].[Mm][Dd]
+**/.agents/
+**/.agent/
+**/.codex/
+**/.claude/
+**/.cursor/
+**/.gemini/
+**/.aider/
+**/.windsurf/
+**/.roo/
+**/.continue/
+**/.opencode/
+**/.kaggle/
+**/.mcp.json
+**/[Aa][Gg][Ee][Nn][Tt][Ss].override.[Mm][Dd]
+**/[Ss][Kk][Ii][Ll][Ll].[Mm][Dd]
+**/.cursorrules
+**/.windsurfrules
+**/.aider.conf.yml
+/.github/agents/
+/.github/instructions/
+/.github/prompts/
+/.github/skills/
+/.github/copilot-instructions.md

@@ -1,8 +1,8 @@
 # RiskLab web
 
 Next.js frontend của ứng dụng mô phỏng hỗ trợ quyết định. Hướng dẫn chuẩn tại
-[application guide](../../docs/development/application.md); phạm vi theo
-[PRD](../../docs/product/prd.md). UI không truy cập PostgreSQL hoặc tự cấp quyền.
+[README dự án](../../README.md). Analyst đề xuất, Manager chốt quyết định
+mô phỏng và Admin quản lý tài khoản. UI không truy cập PostgreSQL hoặc tự cấp quyền.
 
 ```bash
 npm ci --ignore-scripts

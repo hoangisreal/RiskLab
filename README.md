@@ -1,194 +1,191 @@
 # RiskLab
 
+**Credit-risk decision support — from raw data to an auditable human decision.**
+
 [![CI](https://github.com/hoangisreal/RiskLab/actions/workflows/ci.yml/badge.svg)](https://github.com/hoangisreal/RiskLab/actions/workflows/ci.yml)
-![Python 3.12](https://img.shields.io/badge/Python-3.12-blue)
-![Next.js 16](https://img.shields.io/badge/Next.js-16-black)
-![License: MIT](https://img.shields.io/badge/License-MIT-green)
 
-**Credit-risk decision support, built like a production system.** RiskLab scores
-loan applicants on the Home Credit Default Risk dataset, then puts that score
-through a human workflow: a Manager imports cases, a worker scores them, an
-Analyst reviews and proposes, and a Manager alone makes the final — simulated —
-decision. The model never decides.
+[Quick start](#quick-start) · [Architecture](#architecture) · [ML evidence](#ml-evidence) · [Documentation](docs/README.md)
 
-> Production-oriented demo, not a production credit-decisioning system.
-> Every decision in the app is labelled simulated; `approve`/`review` model
-> output is illustrative only.
+RiskLab connects a full-stack review workspace to a reproducible tabular ML
+pipeline. It combines **Next.js, FastAPI, PostgreSQL and a Python worker** with
+**DuckDB, Parquet, scikit-learn and MLflow** to demonstrate how predictions
+become reviewable, versioned evidence inside an application.
 
-## Highlights
+A Manager imports cases, a worker scores them, an Analyst reviews and proposes,
+and a Manager makes the final decision. Predictions, proposals and decisions
+remain separate records.
 
-- **Leakage-safe ML protocol** — five disjoint partitions (Train / Calibration /
-  Selection / Test / Monitoring), preprocessing fitted on Train only, and a
-  content-bound selection lock. The served artifact is byte-identical to the
-  evaluated artifact: no refit after selection.
-- **Human-in-the-loop workflow** — server-side RBAC and separation of duties:
-  Analysts propose, Managers decide, Admins manage accounts only. A reviewer
-  can never decide their own case, even after a role change.
-- **Auditable by construction** — every mutation and its audit event commit in
-  one transaction; predictions, reviews and decisions are immutable and carry
-  full model provenance (artifact hash, run ID, lock ID, feature contract).
-- **Batch/online parity** — batch features (DuckDB over Parquet) and online
-  scoring run the same cleaning code and the same SQL, verified on 500 payloads
-  with a maximum probability difference of 0.
-- **Honest evidence** — every metric carries its MLflow run ID; locked Test
-  results, known limitations and failed checks are published, not hidden.
+> This is a working, production-oriented demo. All lending decisions are
+> simulated; it is not a production credit-decisioning system.
 
-## Results
+![Case review with model probability, explanation and analyst assignment](docs/assets/case-review.jpg)
 
-Final model: LightGBM, frozen by selection lock `17b83143e33bb907` before its
-single locked Test evaluation for that lock (three Test openings in total,
-each recorded in an append-only ledger).
+*Actual application screenshot with synthetic cases and a synthetic model.
+The interface uses Vietnamese copy. [Screenshot provenance](docs/assets/README.md).*
 
-| Locked Test metric (46,127 applicants) | Value | 95% CI |
-|---|---:|---:|
-| ROC-AUC | 0.7754 | [0.7676, 0.7829] |
-| PR-AUC | 0.2565 | [0.2456, 0.2694] |
-| Brier score | 0.0672 | [0.0666, 0.0677] |
-| Log loss | 0.2418 | [0.2395, 0.2441] |
+<details>
+<summary>More screenshots: dashboard and mobile review</summary>
 
-Test run `50d36f3b142a41039ff4d72967242f9a`. Full evidence, Selection
-experiments and subgroup tables are recorded with the MLflow runs above.
+**Manager workspace**
 
-On Selection, LightGBM beat Logistic Regression by +0.0132 ROC-AUC
-(95% CI [0.0091, 0.0174]) under a rule declared in config before the experiment
-ran. Historical sources earned their place the same way — bureau,
-previous-application and installment features are served; bureau-balance, POS
-and credit-card features are not. A later challenger study (XGBoost, CatBoost,
-HistGradientBoosting) met no predeclared superiority rule, so the served model
-is unchanged.
+![Manager dashboard with case counts and review workload](docs/assets/overview.jpg)
 
-## How it works
+**Analyst review on mobile**
 
-```mermaid
-flowchart LR
-    A[Kaggle CSVs] --> B[Ingest to Parquet]
-    B --> C[Validate and partition]
-    C --> D[Feature SQL in DuckDB]
-    D --> E[Train: LR vs LightGBM]
-    E --> F[Selection: sources, calibration, threshold]
-    F --> G[Selection lock]
-    G --> H[Locked Test evaluation]
-    G --> I[MLflow registry]
-    I --> J[FastAPI scoring]
-    J --> K[Monitoring and rollback]
-```
+<img src="docs/assets/mobile-review.jpg" alt="Analyst review workspace on a 390px mobile viewport" width="320" />
 
-```mermaid
-flowchart LR
-    M[Manager imports CSV] --> W[Worker scores async]
-    W --> A2[Analyst reviews and proposes]
-    A2 --> D[Manager decides - simulated]
-    AD[Admin manages accounts] -. separate duty .-> M
-```
+</details>
 
-| Partition | Share | Role |
-|---|---:|---|
-| Train | 55% | Fits preprocessing and models |
-| Calibration | 10% | Fits calibrators only |
-| Selection | 10% | Chooses model, sources, calibration, threshold |
-| Test | 15% | Final evaluation of a locked selection only |
-| Monitoring | 10% | Simulated drift batches; never trains |
+## Quick start
 
-## Quick start — Docker demo
-
-Only Docker and Make are required:
+**Requirements:** Docker with Compose v2 and Make. No Kaggle account, GPU or
+host Python installation is needed for the application demo.
 
 ```bash
-make demo-up        # build and start, waiting for health checks
+git clone https://github.com/hoangisreal/RiskLab.git
+cd RiskLab
+make demo-up
 ```
 
-Open **http://localhost:3000** and sign in with a demo-only account
-(passwords are fixed for this local stack, overridable via
-`RISKLAB_DEMO_*_PASSWORD`, and must never be reused elsewhere):
+Open **http://localhost:3000**. The stack initializes PostgreSQL, migrations,
+three accounts, synthetic snapshots and a small synthetic LightGBM bundle.
+The evaluated Home Credit research artifact and private datasets are not bundled.
 
-| Role | Username | Password |
+| Role | Username | Demo-only password |
 |---|---|---|
-| Admin | `demo.admin` | `RiskLabDemo-Admin1` |
 | Manager | `demo.manager` | `RiskLabDemo-Manager1` |
 | Analyst | `demo.analyst` | `RiskLabDemo-Analyst1` |
+| Admin | `demo.admin` | `RiskLabDemo-Admin1` |
 
-**Three-minute walkthrough:** sign in as Manager → *Import hồ sơ* → upload the
-synthetic CSV at `tests/fixtures/business_v1/import-valid.csv` → wait for
-scoring `SUCCEEDED` → assign the Analyst → sign in as Analyst and submit a
-proposal → sign back in as Manager and finalize the simulated decision.
+**Try the workflow:** sign in as Manager → import
+[`import-valid.csv`](tests/fixtures/business_v1/import-valid.csv) → wait for
+`SUCCEEDED` → assign `demo.analyst` → sign in as Analyst and submit a proposal
+→ sign back in as Manager to return or finalize the simulated decision.
+Admin manages accounts without implicit access to credit decisions.
 
-```bash
-make demo-smoke   # host Python: readiness, login, import-to-scoring check
-make demo-logs    # follow service logs
-make demo-down    # stop, keep data volumes
-make demo-reset   # stop and delete demo volumes
+`make demo-logs` shows service logs; `make demo-down` stops the stack and keeps
+its data. Demo passwords are configurable through `RISKLAB_DEMO_*_PASSWORD`
+and must not be reused outside this loopback-only stack.
+
+## Architecture
+
+```mermaid
+flowchart TB
+    subgraph Research["Offline ML and data pipeline"]
+        direction LR
+        Data["CSV → Parquet<br/>Validation + partitions"] --> Features["DuckDB<br/>feature SQL"]
+        Features --> Fit["Train / Calibration<br/>Selection"]
+        Fit --> Gate["Selection lock<br/>Authorized Test"]
+        Gate --> Registry["MLflow registry<br/>Verified bundle"]
+    end
+    subgraph Application["Application · Docker Compose"]
+        direction LR
+        UI["Next.js workspace"] -->|same-origin HTTP| API["FastAPI business API"]
+        API <--> DB["PostgreSQL<br/>Sessions, cases, jobs, audit"]
+        Worker["Python worker"] <--> DB
+        API --> Storage["Immutable snapshots"]
+        Worker --> Storage
+        Worker --> Inference["Shared features<br/>Pinned inference"]
+    end
+    Research -. operator pins release .-> Application
 ```
 
-The stack runs PostgreSQL, a one-shot `demo-init` (migrations, demo logins,
-synthetic model bundle, demo accounts), the business API, the scoring worker
-and the Next.js web app. Only ports 3000/8000 on loopback are published.
+Training and MLflow run separately from the application. The worker verifies
+its pinned release before scoring; the web UI does not train or promote models.
+Batch and serving reuse the same cleaning and feature SQL.
 
-For host development (Python 3.12, Node.js 24, Docker):
-
-```bash
-make setup
-cd apps/web && npm ci --ignore-scripts && cd ../..
-make app-local
-```
-
-## Tech stack
-
-| Layer | Technology |
+| Engineering decision | What it protects |
 |---|---|
-| Web | Next.js 16, React 19, Tailwind CSS v4, TanStack Table, Recharts |
-| API and worker | FastAPI, SQLAlchemy 2, Alembic, PostgreSQL |
-| ML | LightGBM, scikit-learn, DuckDB, MLflow |
-| Data | Parquet, YAML configs validated by Pydantic |
-| Tooling | uv, Ruff, mypy, pytest, Playwright, Docker Compose, Caddy |
+| **Server-side role and object authorization** | Analysts access assigned cases; Managers alone finalize. Separation of duties survives role changes. Sessions and CSRF checks protect mutations. |
+| **Transactional state changes and audit** | Row locks, revisions and import idempotency handle conflicts and retries. Predictions, submitted reviews and final decisions retain their history. |
+| **PostgreSQL-backed jobs** | `SKIP LOCKED` claims, leases, heartbeats and attempt fencing prevent stale workers from committing. Execution is at least once. |
+| **Explicit data contracts** | Unavailable history differs from confirmed empty history. Missing required sources block scoring rather than silently changing feature semantics. |
+| **Verified model bundles** | Artifact, runtime, feature order and protocol checks bind inference to a known release. The registry path preserves evaluated bytes without a post-selection refit. |
 
-## Repository layout
+The frontend uses TypeScript, React 19, Tailwind CSS 4, TanStack Table and
+Recharts. The backend uses SQLAlchemy, Alembic and separate PostgreSQL roles
+for API, worker and migration operations.
 
-| Path | Contents |
-|---|---|
-| [apps/web](apps/web) | Next.js frontend for the three roles |
-| [src/risklab/business](src/risklab/business) | Business API, worker, scoring, accounts, audit |
-| [src/risklab/api](src/risklab/api) | Versioned scoring API (contract 1.1) |
-| [src/risklab](src/risklab) | ML pipeline: data, features, models, registry, monitoring |
-| [configs](configs), [sql](sql) | Declarative configs and feature/validation SQL |
-| [tests](tests) | Unit, integration, business and browser tests |
-| [deploy](deploy) | Compose stacks, Caddyfile, release tooling |
+## ML evidence
 
-## Verification
+### Frozen Home Credit model
+
+LightGBM uses **147 inputs** from application, bureau, previous-application and
+installment data. Preprocessing learns from Train only; Calibration, Selection,
+Test and Monitoring have separate roles.
+
+Historical locked evaluation on **46,127 Test applicants**:
+
+| Metric | Value | 95% confidence interval |
+|---|---:|---:|
+| ROC-AUC | **0.7754** | 0.7676–0.7829 |
+| PR-AUC | 0.2565 | 0.2456–0.2694 |
+| Brier score | 0.06715 | 0.06657–0.06769 |
+| Log loss | 0.24182 | 0.23949–0.24411 |
+
+A fresh CPU reproduction recovered the **identical artifact SHA256**, exact
+values across seven Train feature tables, and parity on **500 payloads**.
+Recorded HTTP parity had a maximum probability difference of **0**.
+
+These are research-artifact results, not metrics for the synthetic demo model.
+[Results](docs/RESULTS.md) and the [model card](docs/model_card.md) provide
+run/lock identities, subgroup results, limitations and all three recorded
+historical Test openings.
+
+### Broader comparisons and temporal validation
+
+- **12 classifiers:** linear, tree, ensemble and neural baselines alongside
+  LightGBM, XGBoost and CatBoost. Fixed budgets and paired intervals keep
+  numerical gains distinct from a justified promotion. [Model comparison](docs/portfolio/model-comparison.md).
+- **A separate chronological benchmark:** Home Credit Stability training data,
+  forward validation and week-block uncertainty. Its limited 11-feature study
+  reports weak results as well as successes; future-period labels remain
+  unopened. [Temporal study](docs/portfolio/temporal-validation.md).
+- **Operational ML checks:** source ablations, calibration and threshold
+  analysis, drift simulations, audited promotion gates and rollback exercises.
+  [Reproduction and verification](docs/portfolio/verification.md).
+
+## Verification and development
 
 ```bash
-make test   # Ruff, format check, mypy, synthetic pytest gate
+make setup  # uv sync --locked; Python 3.12
+make test   # Ruff, format, mypy and synthetic Python tests; Docker required
 ```
 
-Latest recorded checks (2026-11-15): 698 Python tests passed on real
-disposable PostgreSQL, frontend lint/typecheck/build passed, and browser E2E
-covered the full import → review → decision workflow on desktop and mobile.
+[GitHub Actions](.github/workflows/ci.yml) checks Python and real disposable
+PostgreSQL, frontend lint/types/production build, Docker import-to-scoring smoke,
+and Playwright desktop/mobile workflows. CI uses synthetic data; real-data
+experiments run separately with recorded provenance.
 
-## Known limitations
+For frontend development, use Node.js 24+ and the commands in
+[apps/web](apps/web/README.md). To explore the implementation:
 
-- Static Kaggle snapshot with stratified holdouts; no absolute dates, so no
-  reliable out-of-time validation. Approved loans only (reject-inference
-  bias); `TARGET` is payment difficulty, not measured default or loss.
-- Monitoring is simulated on a static pool with immediate labels; a mild age
-  shift is missed at the frozen alert thresholds (disclosed, not hidden).
-- Local latency is about 99 ms median per request, but the indicative 100 ms
-  p95 target under concurrency is unmet. No production SLO is claimed.
-- Subgroup performance varies (for example younger applicants show a higher
-  false-positive rate under the global threshold). These are descriptive
-  statistics, not fairness findings.
-- VPS/TLS deployment, registry publication and off-VPS backup recovery are
-  implemented as tooling but not yet verified on a target environment.
+| Area | Entry point |
+|---|---|
+| Business API, roles and workflow | [src/risklab/business](src/risklab/business) |
+| Data, features, experiments and model lifecycle | [src/risklab](src/risklab), [experiments](experiments) |
+| Schema and database permissions | [migrations](migrations), [deploy](deploy) |
+| Reproduction, GPU checks and local operations | [scripts](scripts), [documentation](docs/README.md) |
 
-## Documentation
+## Scope and limitations
 
-Detailed design documents, contracts and runbooks are maintained locally
-with the project (product requirements, RBAC and workflow contracts, ML
-evidence and operations guides). This README and the code are the public
-entry points; key invariants are summarized in the sections above.
+The local application and automated checks are verified. Compose/Caddy,
+release preflight and backup/restore tooling are provided; **VPS/TLS deployment,
+an image-registry release and off-VPS recovery remain unverified**. CI does not
+constitute production deployment acceptance.
 
-Raw data, row-level predictions and generated reports are never committed;
-only aggregate reference hashes and metrics under `reports/reference/` are
-tracked.
+The 2018 dataset contains approved loans from a static snapshot; payment
+difficulty is not measured default loss. Its split is not out of time, and
+subgroup metrics do not establish fairness. Explanations describe model
+contributions, not causes. Monitoring is simulated, misses a documented mild
+shift, and the indicative 100 ms concurrent p95 target was not met. The separate
+temporal study has an unknown label horizon and limited predictors.
+
+Raw borrower data, per-row predictions, credentials and local tracking stores
+are excluded from Git. See [ML operations](docs/OPERATIONS.md) for research
+setup and [verification](docs/portfolio/verification.md) for measured evidence.
 
 ## License
 
-[MIT](LICENSE)
+Code is available under the [MIT License](LICENSE). Dataset access and use
+remain subject to the respective provider's terms.

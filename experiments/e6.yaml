@@ -1,0 +1,14 @@
+# Declared before the first E6 run. Selection is descriptive and never tunes candidates.
+seed: 20261116
+groups: [bureau, previous, installments]
+champion_rounds: 283
+folds: 3
+max_rounds: 1200
+early_stopping_rounds: 60
+depths: [4, 6]
+child_weights: [10, 30]
+learning_rate: 0.03
+bootstrap_resamples: 1000
+min_gain: 0.005
+threshold: 0.08040201
+threads: 4

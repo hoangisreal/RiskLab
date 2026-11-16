@@ -1,22 +1,22 @@
-# Synthetic business/import contract examples
+# Fixtures synthetic cho business/import contract
 
-These are **hand-authored synthetic fixtures**, not a deployed catalog or real
-applicant data. The business API/importer is not implemented by these files.
+Đây là fixtures synthetic viết tay; không phải dữ liệu khách hàng thật hoặc
+catalog được triển khai. Catalog runtime được chuẩn bị riêng bởi demo-init.
 
-- `catalog.json`: three versioned server-owned snapshot examples with raw scoring
-  contract 1.1 payloads. IDs are opaque lookup keys, never filesystem paths.
-- `import-valid.csv`: two READY examples plus one INCOMPLETE example that must not score.
-- `import-unknown-snapshot.csv`: reject unknown snapshot; do not fetch a URL/path.
-- `import-duplicate-reference.csv`: reject the whole import, not just the second row.
-- `import-path-injection.csv`: reject a path masquerading as a snapshot ID.
-- `import-extra-column.csv`: reject unexpected headers/labels.
-- `invalid-history.json`: reject the future realized event; deliberately excluded
-  from the trusted catalog. Invalid data is not equivalent to missing history.
+- `catalog.json`: ba snapshot mẫu, payload raw scoring contract 1.1. ID là
+  lookup key opaque, không phải đường dẫn filesystem.
+- `import-valid.csv`: hai hồ sơ READY và một INCOMPLETE không được scoring.
+- `import-unknown-snapshot.csv`: từ chối snapshot lạ, không fetch URL/path.
+- `import-duplicate-reference.csv`: từ chối toàn import có reference trùng.
+- `import-path-injection.csv`: từ chối path giả làm snapshot ID.
+- `import-extra-column.csv`: từ chối header/label ngoài contract.
+- `invalid-history.json`: từ chối realized event ở tương lai; không thuộc
+  trusted catalog. Dữ liệu sai khác nguồn chưa cung cấp hoặc không có lịch sử.
 
-Canonical specifications: [business API](../../../docs/business_api_contract.md)
-and [demo import](../../../docs/demo_import_contract.md).
+Contracts thực thi: [business schemas](../../../src/risklab/business/schemas.py)
+và [import parser](../../../src/risklab/business/import_csv.py).
 
-Tests validate catalog payloads through the existing scoring schema, relational
-validation and actual shared SQL feature builder. CSV example checks only verify
-fixture intent; they are not acceptance tests for a production importer. B03
-must exercise the same examples through the implemented import API/worker and DB.
+Tests schema/shared SQL kiểm tra ý nghĩa từng fixture. Kiểm chứng importer,
+worker và PostgreSQL dùng [import tests](../../business/test_imports.py) và
+[workflow tests](../../business/test_workflow.py); fixture tự nó không chứng
+minh ứng dụng hoặc môi trường production đã được nghiệm thu.
