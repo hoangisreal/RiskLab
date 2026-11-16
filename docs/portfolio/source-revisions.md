@@ -38,6 +38,12 @@ commit tree bằng public-path policy, không chỉ kiểm tra tip. Settings rep
 và Pages source `master:/docs` được lưu để khôi phục; Actions được chạy lại.
 Không dùng rewrite để thay bằng chứng model hoặc mở Test.
 
+Snapshot publication `82eb52f03602ef6f7e8b1d01eed24fd362be5398` đã được kiểm
+chứng bằng mirror clone mới: 31 reachable commits, không có private paths
+hoặc PR refs, 360 public files khớp local byte-for-byte. Repo ID mới
+`1459735047`; lookup SHA PR gốc trả HTTP 422. Đây là bằng chứng cho graph mới,
+không phải chứng nhận xóa dữ liệu vật lý khỏi mọi hệ thống của GitHub.
+
 [GitHub mô tả giới hạn PR refs và cached commits](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/removing-sensitive-data-from-a-repository).
 Audit graph mới không chứng minh xóa mọi cache, backup nội bộ của GitHub hoặc
 clone của bên thứ ba. Local pre-push guard chặn việc đẩy original private

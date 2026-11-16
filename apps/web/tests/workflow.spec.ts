@@ -121,22 +121,29 @@ test("manager import to analyst review to manager decision", async ({
   expect(new Set(importKeys).size).toBe(1);
   expect(importKeys.length).toBeGreaterThanOrEqual(3);
 
-  await page.goto("/applications");
-  await filterByReference(page, prefix);
+  // Wait for the real worker independently of table hydration. Reloading and
+  // immediately counting rows can repeatedly observe the loading skeleton.
   await expect
     .poll(
       async () => {
-        await page.reload();
-        await filterByReference(page, prefix);
-        const links = await page
-          .getByRole("link", { name: "Xem hồ sơ" })
-          .count();
-        const scored = await page.getByText("SUCCEEDED").first().isVisible();
-        return links === 3 && scored;
+        const response = await page.request.get("/api/v1/applications", {
+          params: { q: prefix, page_size: 20 },
+        });
+        expect(response.ok()).toBe(true);
+        const { data } = (await response.json()) as {
+          data: { scoring_state: string }[];
+        };
+        return (
+          data.length === 3 &&
+          data.some((row) => row.scoring_state === "SUCCEEDED")
+        );
       },
       { timeout: 120_000 },
     )
     .toBe(true);
+  await page.goto("/applications");
+  await filterByReference(page, prefix);
+  await expect(page.getByRole("link", { name: "Xem hồ sơ" })).toHaveCount(3);
   await page
     .locator("tr", { hasText: "SUCCEEDED" })
     .getByRole("link", { name: "Xem hồ sơ" })

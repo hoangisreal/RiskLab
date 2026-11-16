@@ -152,6 +152,14 @@ Kết quả mới tách khỏi [RESULTS lịch sử](../RESULTS.md).
 | Frozen protocol và ba evidence files lịch sử | Hash/bytes không đổi |
 | GitHub Markdown + Mermaid parse/render | Pass; ảnh và sơ đồ được xem trực tiếp |
 
+Browser CI đầu tiên của snapshot `82eb52f` phát hiện race trong test: reload
+và đếm rows ngay lúc table đang tải. Local reproduction xác nhận worker đã
+lưu đủ ba hồ sơ (hai SUCCEEDED), trong khi probe DOM lặp lại loading state.
+Test sửa sang poll API đọc trạng thái worker rồi dùng auto-wait assert đủ ba
+links trong UI; không mock scoring, tăng timeout hoặc thêm retries. Sau sửa,
+`npm run test:e2e:workflow`: **4 passed (39,2 giây)** trên desktop/mobile;
+`npm run lint`, `npm run typecheck`, `npm run format:check` đều pass.
+
 Có một Starlette TestClient deprecation warning; không đổi dependencies để
 che warning. Các pytest checks chỉ dùng synthetic data. Frontend production
 build đã được dựng lại bằng Docker để chụp ảnh; gate frontend/E2E đầy đủ nằm
