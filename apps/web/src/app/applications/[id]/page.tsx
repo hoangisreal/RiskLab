@@ -26,6 +26,8 @@ import {
 import { useSession } from "@/components/session";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { PageHeader, StatusBadge } from "@/components/primitives";
+import { RiskGauge } from "@/components/risk-gauge";
+import { useMounted } from "@/lib/use-reduced-motion";
 
 type Analyst = { id: string; username: string };
 
@@ -69,6 +71,7 @@ function ApplicationWorkspace({ id }: { id: string }) {
   const [refreshKey, setRefreshKey] = useState(0);
   const [intent, setIntent] = useState("save");
   const [decisionIntent, setDecisionIntent] = useState("decide");
+  const mounted = useMounted();
   const historyRequest = useRef(0);
   const decisionKey = useRef<string>("");
   const savedRevision = useRef<number | null>(null);
@@ -242,6 +245,16 @@ function ApplicationWorkspace({ id }: { id: string }) {
           </li>
         ))}
       </ol>
+      <div className="workflow-progress" aria-hidden="true">
+        <div
+          className="workflow-progress-fill"
+          style={{
+            width: mounted
+              ? `${(stepIndex / (STEPS.length - 1)) * 100}%`
+              : "0%",
+          }}
+        />
+      </div>
       <div className="detail-grid">
         <div className="info-col">
           <PredictionPanel
@@ -577,8 +590,13 @@ function ApplicationWorkspace({ id }: { id: string }) {
           <EmptyState>Chưa có sự kiện lịch sử.</EmptyState>
         ) : (
           <ol className="timeline">
-            {history.map((event) => (
-              <li key={event.id}>
+            {history.map((event, index) => (
+              <li
+                key={event.id}
+                style={{
+                  animationDelay: `${Math.min(index, 8) * 60}ms`,
+                }}
+              >
                 <strong>{labelOf(ACTION_LABEL, event.action)}</strong>{" "}
                 <span className="event-meta">
                   · {event.actor_type} ·{" "}
@@ -652,7 +670,7 @@ function PredictionPanel({
   onRetry: (reason: string) => void;
 }) {
   return (
-    <section className="sheet" aria-labelledby="prediction-heading">
+    <section className="sheet reveal" aria-labelledby="prediction-heading">
       <p className="eyebrow">Kết quả model · Tham khảo</p>
       <StatusBadge
         value={detail.scoring_state}
@@ -689,10 +707,6 @@ function PredictionPanel({
         <>
           <dl className="responsibilities">
             <div>
-              <dt>Xác suất model</dt>
-              <dd>{toPercent(prediction.probability)}</dd>
-            </div>
-            <div>
               <dt>Ngưỡng chính sách</dt>
               <dd>
                 {toPercent(prediction.threshold)} · {prediction.policy_version}
@@ -706,6 +720,11 @@ function PredictionPanel({
               </dd>
             </div>
           </dl>
+          <RiskGauge
+            probability={prediction.probability}
+            threshold={prediction.threshold}
+            policyVersion={prediction.policy_version}
+          />
           <p>
             TARGET là khó khăn thanh toán trong dữ liệu lịch sử, không phải xác
             suất vỡ nợ thực tế đã kiểm định. Xác suất trên không tự tạo quyết
@@ -760,21 +779,31 @@ function ContributionBars({
 }: {
   items: { feature: string; contribution: number; value?: unknown }[];
 }) {
+  const mounted = useMounted();
   const max = Math.max(1e-9, ...items.map((i) => Math.abs(i.contribution)));
   return (
     <div role="list" aria-label="Đóng góp log-odds theo feature">
-      {items.map((item) => {
+      {items.map((item, index) => {
         const positive = item.contribution >= 0;
-        const width = `${(Math.abs(item.contribution) / max) * 50}%`;
+        const width = mounted
+          ? `${(Math.abs(item.contribution) / max) * 50}%`
+          : "0%";
         return (
-          <div key={item.feature} className="contrib" role="listitem">
+          <div
+            key={item.feature}
+            className="contrib"
+            role="listitem"
+            title={`${item.feature}: ${item.contribution >= 0 ? "+" : "−"}${Math.abs(item.contribution).toFixed(4)} log-odds`}
+          >
             <span>{item.feature}</span>
             <span className="contrib-bar" aria-hidden="true">
               <span
                 className={`contrib-fill ${positive ? "positive" : "negative"}`}
-                style={
-                  positive ? { left: "50%", width } : { right: "50%", width }
-                }
+                style={{
+                  ...(positive ? { left: "50%" } : { right: "50%" }),
+                  width,
+                  transitionDelay: `${Math.min(index, 8) * 45}ms`,
+                }}
               />
             </span>
             <span className="contrib-value">

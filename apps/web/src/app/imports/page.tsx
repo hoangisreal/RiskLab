@@ -59,6 +59,21 @@ export default function Imports() {
     };
   }, [user, refreshKey]);
 
+  // Poll quietly while any import is active; stop as soon as all jobs settle
+  // so an idle page never generates background traffic.
+  useEffect(() => {
+    if (user?.role !== "MANAGER") return;
+    const active = jobs.some(
+      (job) => job.state === "QUEUED" || job.state === "RUNNING",
+    );
+    if (!active) return;
+    const timer = window.setInterval(
+      () => setRefreshKey((value) => value + 1),
+      3000,
+    );
+    return () => window.clearInterval(timer);
+  }, [user, jobs]);
+
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const values = new FormData(event.currentTarget);
@@ -279,14 +294,37 @@ export default function Imports() {
                 {
                   accessorKey: "created_count",
                   header: "Kết quả",
-                  cell: ({ row }) => (
-                    <span>
-                      {row.original.created_count}/
-                      {row.original.total_rows ?? "—"} hồ sơ · Sẵn sàng{" "}
-                      {row.original.ready_count} · Thiếu nguồn{" "}
-                      {row.original.incomplete_count}
-                    </span>
-                  ),
+                  cell: ({ row }) => {
+                    const total = row.original.total_rows;
+                    const percent =
+                      total && total > 0
+                        ? Math.min(
+                            100,
+                            Math.round(
+                              (row.original.created_count / total) * 100,
+                            ),
+                          )
+                        : row.original.state === "SUCCEEDED"
+                          ? 100
+                          : 0;
+                    return (
+                      <span>
+                        {row.original.created_count}/{total ?? "—"} hồ sơ · Sẵn
+                        sàng {row.original.ready_count} · Thiếu nguồn{" "}
+                        {row.original.incomplete_count}
+                        <span
+                          className="import-progress"
+                          role="img"
+                          aria-label={`Tiến độ import ${percent}%`}
+                        >
+                          <span
+                            className="import-progress-fill"
+                            style={{ width: `${percent}%` }}
+                          />
+                        </span>
+                      </span>
+                    );
+                  },
                 },
                 {
                   id: "errors",

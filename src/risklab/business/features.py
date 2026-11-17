@@ -835,12 +835,61 @@ def workload(request: Request) -> Envelope[dict[str, Any]]:
         total_statement = select(func.count()).select_from(Application)
         if actor.role == "ANALYST":
             total_statement = total_statement.where(Application.assignee_id == actor.id)
+
+        # Assignee counts carry the username, never the raw user UUID: the
+        # report is read by humans, and the identifier adds no information.
+        assignee_statement = (
+            select(User.username, func.count())
+            .select_from(Application)
+            .outerjoin(User, User.id == Application.assignee_id)
+            .group_by(User.username)
+            .order_by(User.username)
+        )
+        if actor.role == "ANALYST":
+            assignee_statement = assignee_statement.where(Application.assignee_id == actor.id)
+        by_assignee = [
+            {"value": str(value) if value is not None else None, "count": int(count)}
+            for value, count in session.execute(assignee_statement).all()
+        ]
         result = {
             "total": session.scalar(total_statement) or 0,
             "by_review_state": counts(Application.review_state),
             "by_scoring_state": counts(Application.scoring_state),
-            "by_assignee": counts(Application.assignee_id),
+            "by_assignee": by_assignee,
         }
+    return Envelope(data=result)
+
+
+@router.get("/reports/risk-distribution", dependencies=[Depends(no_query)])
+def risk_distribution(request: Request) -> Envelope[dict[str, Any]]:
+    """Histogram of stored model probabilities in the caller's scope.
+
+    Ten fixed 0.1-wide buckets over scored applications only. The response
+    contains aggregate counts and no per-case probabilities, so it cannot be
+    used to reconstruct an individual applicant's score.
+    """
+    with transaction(request) as session:
+        actor = authenticate(session, request, {"ANALYST", "MANAGER"})
+        statement = (
+            select(Prediction.probability)
+            .join(Application, Application.id == Prediction.application_id)
+            .where(Application.scoring_state == "SUCCEEDED")
+        )
+        if actor.role == "ANALYST":
+            statement = statement.where(Application.assignee_id == actor.id)
+        probabilities = [float(value) for value in session.scalars(statement)]
+    buckets = [
+        {
+            "lower": round(index * 0.1, 1),
+            "upper": round((index + 1) * 0.1, 1),
+            "count": 0,
+        }
+        for index in range(10)
+    ]
+    for probability in probabilities:
+        index = min(9, max(0, int(probability * 10)))
+        buckets[index]["count"] += 1
+    result = {"total_scored": len(probabilities), "buckets": buckets}
     return Envelope(data=result)
 
 

@@ -34,7 +34,7 @@ export default function Login() {
     }
   }
   return (
-    <div className="login-wrap">
+    <div className="login-wrap reveal">
       <div className="page-heading">
         <h1>Đăng nhập RiskLab</h1>
         <p className="login-intro">

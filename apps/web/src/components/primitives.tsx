@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   AlertCircle,
   CheckCircle2,
@@ -9,6 +9,32 @@ import {
   MinusCircle,
   XCircle,
 } from "lucide-react";
+import { usePrefersReducedMotion } from "@/lib/use-reduced-motion";
+
+function CountingNumber({ value }: { value: number }) {
+  const [display, setDisplay] = useState(0);
+  const frame = useRef<number>(0);
+  useEffect(() => {
+    const start = performance.now();
+    const duration = 750;
+    function tick(now: number) {
+      const progress = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setDisplay(Math.round(eased * value));
+      if (progress < 1) frame.current = requestAnimationFrame(tick);
+    }
+    frame.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame.current);
+  }, [value]);
+  return <>{display.toLocaleString("vi-VN")}</>;
+}
+
+/** Counts from 0 to `value` once visible; renders instantly if reduced motion. */
+function AnimatedNumber({ value }: { value: number }) {
+  const reduced = usePrefersReducedMotion();
+  if (reduced) return <>{value.toLocaleString("vi-VN")}</>;
+  return <CountingNumber value={value} />;
+}
 
 /** Shared page heading: title, Vietnamese summary and optional actions. */
 export function PageHeader({
@@ -113,7 +139,9 @@ export function MetricCard({
   return (
     <div className="metric">
       <small>{label}</small>
-      <strong>{value}</strong>
+      <strong>
+        {typeof value === "number" ? <AnimatedNumber value={value} /> : value}
+      </strong>
       {hint ? <span className="metric-hint">{hint}</span> : null}
     </div>
   );

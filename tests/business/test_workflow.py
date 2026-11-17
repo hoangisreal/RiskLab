@@ -545,10 +545,23 @@ def test_workload_reports_are_scoped(workflow_env):
     assign(manager, target, users["analyst.demo"])
     report = manager.get("/api/v1/reports/workload").json()["data"]
     assert report["total"] == 3
+    # Assignee counts expose the username for display, never the raw UUID.
+    assignee_values = {row["value"] for row in report["by_assignee"]}
+    assert "analyst.demo" in assignee_values
+    assert str(users["analyst.demo"]) not in assignee_values
     analyst = signed_in(app, "analyst.demo")
     scoped = analyst.get("/api/v1/reports/workload").json()["data"]
     assert scoped["total"] == 1
+    assert {row["value"] for row in scoped["by_assignee"]} == {"analyst.demo"}
+    # Risk distribution is aggregated, scoped and role-gated like the workload.
+    distribution = manager.get("/api/v1/reports/risk-distribution").json()["data"]
+    assert distribution["total_scored"] == 2
+    assert len(distribution["buckets"]) == 10
+    assert sum(bucket["count"] for bucket in distribution["buckets"]) == 2
+    scoped_distribution = analyst.get("/api/v1/reports/risk-distribution").json()["data"]
+    assert scoped_distribution["total_scored"] == 1
     assert signed_in(app, "admin.demo").get("/api/v1/reports/workload").status_code == 403
+    assert signed_in(app, "admin.demo").get("/api/v1/reports/risk-distribution").status_code == 403
     current = analyst.get("/api/v1/models/current").json()["data"]
     assert current["model_version"] == "synthetic-workflow-v1"
     assert current["limitations"]

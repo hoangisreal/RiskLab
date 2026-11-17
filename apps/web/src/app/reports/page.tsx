@@ -6,6 +6,12 @@ import { api, messageFor } from "@/lib/api";
 import { useSession } from "@/components/session";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { PageHeader, StatusBadge } from "@/components/primitives";
+import {
+  AssigneeChart,
+  CountChart,
+  RiskDistributionChart,
+  WorkflowFunnel,
+} from "@/components/risk-chart";
 import { REVIEW_STATE_LABEL, SCORING_STATE_LABEL, labelOf } from "@/lib/labels";
 
 type Workload = {
@@ -21,6 +27,10 @@ type CurrentModel = {
   model_run_id: string;
   lock_id: string;
   limitations: string[];
+};
+type RiskDistribution = {
+  total_scored: number;
+  buckets: { lower: number; upper: number; count: number }[];
 };
 type Comparison = {
   report_version?: string;
@@ -82,6 +92,10 @@ export default function Reports() {
   const [workload, setWorkload] = useState<Workload | null>(null);
   const [model, setModel] = useState<CurrentModel | null>(null);
   const [comparison, setComparison] = useState<Comparison | null>(null);
+  const [distribution, setDistribution] = useState<RiskDistribution | null>(
+    null,
+  );
+  const [view, setView] = useState<"chart" | "table">("chart");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -94,6 +108,11 @@ export default function Reports() {
         setModel(await api<CurrentModel>("/api/v1/models/current"));
         setComparison(
           await api<Comparison>("/api/v1/models/comparison").catch(() => null),
+        );
+        setDistribution(
+          await api<RiskDistribution>(
+            "/api/v1/reports/risk-distribution",
+          ).catch(() => null),
         );
         if (!cancelled) setError("");
       } catch (failure) {
@@ -134,19 +153,82 @@ export default function Reports() {
         title="Báo cáo"
         intro="Số liệu lấy từ dữ liệu đã lưu trong phạm vi quyền của bạn. Model hiển thị là bản đã ghim cho prediction; lịch sử quyết định luôn giữ model của prediction tại thời điểm review."
       />
-      <section className="sheet" aria-labelledby="workload-heading">
-        <h2 id="workload-heading">Khối lượng hồ sơ ({workload.total})</h2>
-        <CountTable
-          title="Theo trạng thái review"
-          rows={workload.by_review_state}
-          labels={REVIEW_STATE_LABEL}
-        />
-        <CountTable
-          title="Theo trạng thái scoring"
-          rows={workload.by_scoring_state}
-          labels={SCORING_STATE_LABEL}
-        />
-        <CountTable title="Theo người phụ trách" rows={workload.by_assignee} />
+      <section className="sheet reveal" aria-labelledby="workload-heading">
+        <div className="page-heading-row">
+          <h2 id="workload-heading">Khối lượng hồ sơ ({workload.total})</h2>
+          <div className="inline" role="group" aria-label="Chế độ hiển thị">
+            <button
+              type="button"
+              aria-pressed={view === "chart"}
+              className={view === "chart" ? "btn-primary" : undefined}
+              onClick={() => setView("chart")}
+            >
+              Biểu đồ
+            </button>
+            <button
+              type="button"
+              aria-pressed={view === "table"}
+              className={view === "table" ? "btn-primary" : undefined}
+              onClick={() => setView("table")}
+            >
+              Bảng
+            </button>
+          </div>
+        </div>
+        {view === "table" ? (
+          <>
+            <CountTable
+              title="Theo trạng thái review"
+              rows={workload.by_review_state}
+              labels={REVIEW_STATE_LABEL}
+            />
+            <CountTable
+              title="Theo trạng thái scoring"
+              rows={workload.by_scoring_state}
+              labels={SCORING_STATE_LABEL}
+            />
+            <CountTable
+              title="Theo người phụ trách"
+              rows={workload.by_assignee}
+            />
+          </>
+        ) : workload.total ? (
+          <>
+            <h3>Trạng thái review</h3>
+            <WorkflowFunnel
+              data={workload.by_review_state}
+              total={workload.total}
+            />
+            <CountChart data={workload.by_review_state} />
+            <h3>Trạng thái scoring</h3>
+            <CountChart
+              data={workload.by_scoring_state}
+              labels={SCORING_STATE_LABEL}
+            />
+            <h3>Người phụ trách</h3>
+            <AssigneeChart data={workload.by_assignee} />
+          </>
+        ) : (
+          <EmptyState>Chưa có dữ liệu.</EmptyState>
+        )}
+      </section>
+      <section
+        className="sheet section-gap reveal reveal-delay-1"
+        aria-labelledby="distribution-heading"
+      >
+        <h2 id="distribution-heading">Phân bố xác suất model</h2>
+        <p>
+          Histogram tổng hợp trên {distribution?.total_scored ?? 0} hồ sơ đã có
+          điểm trong phạm vi quyền của bạn. Endpoint chỉ trả số lượng theo
+          khoảng 0,1 nên không lộ xác suất của từng hồ sơ.
+        </p>
+        {distribution && distribution.total_scored > 0 ? (
+          <RiskDistributionChart buckets={distribution.buckets} />
+        ) : (
+          <EmptyState>
+            Chưa có hồ sơ nào được chấm điểm trong phạm vi của bạn.
+          </EmptyState>
+        )}
       </section>
       <section className="sheet section-gap" aria-labelledby="model-heading">
         <p className="eyebrow">Model đang phục vụ</p>
@@ -214,7 +296,10 @@ export default function Reports() {
                     <td data-label="Phân vùng">{row.partition_role}</td>
                     <td data-label="Metrics">
                       {Object.entries(row.metrics)
-                        .map(([name, value]) => `${name}: ${value}`)
+                        .map(
+                          ([name, value]) =>
+                            `${name}: ${typeof value === "number" ? value.toFixed(4) : value}`,
+                        )
                         .join(" · ")}
                     </td>
                   </tr>

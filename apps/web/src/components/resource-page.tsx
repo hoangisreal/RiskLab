@@ -7,12 +7,13 @@ import { api, apiPage, messageFor } from "@/lib/api";
 import { ACTION_LABEL, formatDateTime, labelOf } from "@/lib/labels";
 import { LoadingState, ErrorState, EmptyState } from "./states";
 import { DataTable } from "./data-table";
-import { CountChart } from "./risk-chart";
+import { CountChart, ScoringChart, WorkflowFunnel } from "./risk-chart";
 import { MetricCard, PageHeader, StatusBadge } from "./primitives";
 
 type Workload = {
   total: number;
   by_review_state: { value: string; count: number }[];
+  by_scoring_state?: { value: string; count: number }[];
 };
 
 type Model = {
@@ -421,10 +422,19 @@ function ResourceWorkspace({
           </div>
         </div>
         <div className="detail-grid">
-          <section className="sheet" aria-label="Phân bố trạng thái review">
+          <section
+            className="sheet reveal"
+            aria-label="Phân bố trạng thái review"
+          >
             <h2>Phân bố trạng thái review</h2>
             {workload.total ? (
-              <CountChart data={workload.by_review_state} />
+              <>
+                <WorkflowFunnel
+                  data={workload.by_review_state}
+                  total={workload.total}
+                />
+                <CountChart data={workload.by_review_state} />
+              </>
             ) : (
               <EmptyState>
                 Chưa có hồ sơ. Manager có thể import catalog synthetic.
@@ -450,6 +460,15 @@ function ResourceWorkspace({
             <Link href="/models">Mở Model Registry →</Link>
           </section>
         </div>
+        {workload.total && workload.by_scoring_state?.length ? (
+          <section
+            className="sheet section-gap reveal reveal-delay-1"
+            aria-label="Phân bố trạng thái scoring"
+          >
+            <h2>Phân bố trạng thái scoring</h2>
+            <ScoringChart data={workload.by_scoring_state} />
+          </section>
+        ) : null}
       </>
     );
   }

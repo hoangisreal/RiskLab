@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
   Files,
+  FlaskConical,
   LayoutDashboard,
   ListChecks,
   Menu,
@@ -57,6 +58,13 @@ const items: Item[] = [
     label: "Báo cáo",
     aria: "Báo cáo",
     Icon: Newspaper,
+    roles: ["MANAGER", "ANALYST"],
+  },
+  {
+    href: "/evidence",
+    label: "Bằng chứng ML",
+    aria: "Bằng chứng ML",
+    Icon: FlaskConical,
     roles: ["MANAGER", "ANALYST"],
   },
   {
