@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/hoangisreal/RiskLab/actions/workflows/ci.yml/badge.svg)](https://github.com/hoangisreal/RiskLab/actions/workflows/ci.yml)
 
-[Quick start](#quick-start) · [Architecture](#architecture) · [ML evidence](#ml-evidence) · [Documentation](docs/README.md)
+[Quick start](#quick-start) · [The workspace](#the-workspace) · [Architecture](#architecture) · [ML evidence](#ml-evidence) · [Documentation](docs/README.md)
 
 RiskLab connects a full-stack review workspace to a reproducible tabular ML
 pipeline. It combines **Next.js, FastAPI, PostgreSQL and a Python worker** with
@@ -13,26 +13,30 @@ become reviewable, versioned evidence inside an application.
 
 A Manager imports cases, a worker scores them, an Analyst reviews and proposes,
 and a Manager makes the final decision. Predictions, proposals and decisions
-remain separate records.
+remain separate records — the model never decides.
 
 > This is a working, production-oriented demo. All lending decisions are
 > simulated; it is not a production credit-decisioning system.
 
-![Case review with model probability, explanation and analyst assignment](docs/assets/case-review.jpg)
+![Case review with the probability gauge against the policy threshold, log-odds explanation and analyst assignment](docs/assets/case-review.jpg)
 
 *Actual application screenshot with synthetic cases and a synthetic model.
 The interface uses Vietnamese copy. [Screenshot provenance](docs/assets/README.md).*
 
 <details>
-<summary>More screenshots: dashboard and mobile review</summary>
+<summary>More screenshots: dashboard, ML evidence and mobile review</summary>
 
-**Manager workspace**
+**Manager dashboard — workload funnel and scoring distribution**
 
-![Manager dashboard with case counts and review workload](docs/assets/overview.jpg)
+![Manager dashboard with animated case counts, the workflow funnel and scoring distribution](docs/assets/overview.jpg)
 
-**Analyst review on mobile**
+**Historical ML evidence — locked metrics, model comparison, temporal benchmark**
 
-<img src="docs/assets/mobile-review.jpg" alt="Analyst review workspace on a 390px mobile viewport" width="320" />
+![ML evidence page with locked Test metrics and confidence intervals, the 12-pipeline comparison and the temporal benchmark](docs/assets/evidence.jpg)
+
+**Analyst case view on mobile, after the simulated decision**
+
+<img src="docs/assets/mobile-review.jpg" alt="Analyst case view on a 390px mobile viewport with probability gauge, proposal, final simulated decision and history" width="320" />
 
 </details>
 
@@ -66,6 +70,23 @@ Admin manages accounts without implicit access to credit decisions.
 `make demo-logs` shows service logs; `make demo-down` stops the stack and keeps
 its data. Demo passwords are configurable through `RISKLAB_DEMO_*_PASSWORD`
 and must not be reused outside this loopback-only stack.
+
+## The workspace
+
+The interface is a restrained enterprise workspace (light mode, Vietnamese
+copy) with one deliberate layer of motion: numbers count up once, bars grow
+from their baseline, and workflow progress fills as a case advances. Every
+animation yields to `prefers-reduced-motion`, and no state is ever carried
+by color alone — badges always pair an icon with a label, and every chart
+has a textual equivalent.
+
+| Surface | What it shows |
+|---|---|
+| **Dashboard** | Animated workload metrics, a segmented funnel across the five review states (light-to-dark indigo encodes progress) and the scoring-state distribution for the caller's role scope. |
+| **Case detail** | The stored prediction as a probability gauge against the fixed policy-threshold marker, with the distance to the threshold stated in words. The fill stays indigo at every value: crossing the threshold is information for the reviewer, never an automatic verdict. Log-odds contribution bars grow from a center axis, and the audit timeline unfolds beneath the workflow steps. |
+| **Reports** | The same workload aggregates as charts or tables (one toggle), plus an aggregate risk-distribution histogram. The API returns ten fixed probability buckets with counts only, so no individual score can be reconstructed. |
+| **ML evidence** (`/evidence`) | The locked historical research results — Test metrics with 95% confidence-interval strips, the 12-pipeline comparison and the chronological benchmark — explicitly labelled as *not* metrics of the synthetic demo model. |
+| **Imports** | Per-job progress bars; the page polls quietly every three seconds only while a job is queued or running. |
 
 ## Architecture
 
@@ -101,9 +122,11 @@ Batch and serving reuse the same cleaning and feature SQL.
 | **PostgreSQL-backed jobs** | `SKIP LOCKED` claims, leases, heartbeats and attempt fencing prevent stale workers from committing. Execution is at least once. |
 | **Explicit data contracts** | Unavailable history differs from confirmed empty history. Missing required sources block scoring rather than silently changing feature semantics. |
 | **Verified model bundles** | Artifact, runtime, feature order and protocol checks bind inference to a known release. The registry path preserves evaluated bytes without a post-selection refit. |
+| **Aggregate-only analytics** | Report endpoints return counts and fixed probability buckets scoped to the caller. The UI visualizes workload without exposing any individual applicant's score. |
 
 The frontend uses TypeScript, React 19, Tailwind CSS 4, TanStack Table and
-Recharts. The backend uses SQLAlchemy, Alembic and separate PostgreSQL roles
+Recharts, with CSS-keyframe motion that respects reduced-motion preferences.
+The backend uses SQLAlchemy, Alembic and separate PostgreSQL roles
 for API, worker and migration operations.
 
 ## ML evidence
@@ -128,9 +151,10 @@ values across seven Train feature tables, and parity on **500 payloads**.
 Recorded HTTP parity had a maximum probability difference of **0**.
 
 These are research-artifact results, not metrics for the synthetic demo model.
-[Results](docs/RESULTS.md) and the [model card](docs/model_card.md) provide
-run/lock identities, subgroup results, limitations and all three recorded
-historical Test openings.
+The same numbers are presented in the application under **ML evidence**
+(`/evidence`) with their run/lock identities. [Results](docs/RESULTS.md) and
+the [model card](docs/model_card.md) provide run/lock identities, subgroup
+results, limitations and all three recorded historical Test openings.
 
 ### Broader comparisons and temporal validation
 
@@ -163,6 +187,8 @@ For frontend development, use Node.js 24+ and the commands in
 | Area | Entry point |
 |---|---|
 | Business API, roles and workflow | [src/risklab/business](src/risklab/business) |
+| Reports aggregation and risk distribution | [src/risklab/business/features.py](src/risklab/business/features.py) |
+| Workspace UI, charts and evidence page | [apps/web/src](apps/web/src) |
 | Data, features, experiments and model lifecycle | [src/risklab](src/risklab), [experiments](experiments) |
 | Schema and database permissions | [migrations](migrations), [deploy](deploy) |
 | Reproduction, GPU checks and local operations | [scripts](scripts), [documentation](docs/README.md) |

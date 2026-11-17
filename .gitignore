@@ -63,6 +63,7 @@ test-results/
 /docs/assets/*
 !/docs/assets/overview.jpg
 !/docs/assets/case-review.jpg
+!/docs/assets/evidence.jpg
 !/docs/assets/mobile-review.jpg
 !/docs/assets/README.md
 /AGENTS.md
